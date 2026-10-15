@@ -47,6 +47,27 @@ port opinionated about the Pi stack. Verify each mapping with a real run in phas
   and pitfalls. Not loaded by agents; `poteto-help` links to it. Decide whether to port, trim, or
   link upstream.
 
+## Planned (from reviewing michael-denyer/pstack-claude)
+
+- **Denylist check.** A script that fails when `skills/` or `agents/` still name Cursor-only
+  things (`Cursor`, `Task` tool, `subagent_type`, `~/.cursor`, `AskQuestion`, `/loop`). Run it
+  after every upstream merge.
+- **NOTICE.md.** Per-component table: path, upstream commit, copyright holder, license file.
+  cursor-team-kit is (c) Cursor, not Lauren Tan.
+- **Single-family panels.** When the user's roles file resolves a panel to one model family,
+  vary the reasoning level instead and say in the verdict that model diversity was reduced.
+- **Per-skill Pi notes to write into the skills while porting:** `comment-sicko` never runs in a
+  worktree (a worktree starts from `HEAD` and lacks uncommitted changes); the `why` synthesizer
+  starts only after every investigator has reported; `create-verification-skill` and
+  `automate-me` write to `.agents/skills/`.
+- **Optional auto-routing.** pstack only runs when the user types `/skill:poteto-mode`, because
+  every skill sets `disable-model-invocation`. `/skill:setup-pstack` offers to add a short
+  routing paragraph to `~/.pi/agent/AGENTS.md` ("for multi-file changes, design choices, and
+  unknown bugs, use `/skill:poteto-mode`"). Off unless the user opts in.
+- **Alternative wake mechanism.** pstack-claude ships its own `/loop` and `schedule_wakeup`
+  (in-session re-prompt, MIT, about 230 lines). Revisit if pi-goal-x plus `schedule.create`
+  falls short in phase 4.
+
 ## Open questions
 
 - **Skill names.** `how`, `why`, `recall`, `correct`, `tdd` are generic and may collide with other

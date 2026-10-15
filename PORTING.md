@@ -33,6 +33,7 @@ Reference for humans syncing upstream. Agents never read this file.
 | `/loop <interval> <tick>` | pi-subagents `schedule.create` with `every` |
 | event watcher that wakes the parent | async subagent or `bg_run` (pi-background-tasks) |
 | `AskQuestion` | ask the user (structured question tool when available) |
-| `~/.cursor/projects/*/agent-transcripts` | `~/.pi/agent/sessions` |
+| `~/.cursor/projects/*/agent-transcripts` | `~/.pi/agent/sessions/--<cwd>--/` for this workspace only (`<cwd>` without the leading `/`, each `/` as `-`; `$PI_CODING_AGENT_DIR` when set). Entries form a tree: follow `parentId` back from the last entry |
 | Cursor built-in `create-skill` | `writing-for-agents` skill |
-| `cursor-team-kit` `deslop`, `control-ui`, `control-cli` | ported into this package |
+| `cursor-team-kit` `deslop`, `control-ui`, `control-cli` | ported into this package (copyright Cursor, needs `LICENSE-cursor-team-kit`) |
+| skills a skill generates for a project (`create-verification-skill`, `automate-me`) | `.agents/skills/<name>/` in the project |
