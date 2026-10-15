@@ -24,6 +24,15 @@ record which tools the user has, and make skills and playbooks use that.
 - Origin CLI as a landing path in Shipping.
 - `why` sources: Linear, Slack, Notion, Datadog, Sentry, Databricks.
 
+## Pi behavior the port works around
+
+- **Hidden skills never reach subagents.** pi-subagents drops every skill with
+  `disable-model-invocation: true` from a child's prompt, even when the agent names it in
+  `skills`. All pstack skills are hidden, so `poteto-agent` gets the poteto-mode path from its
+  parent, and falls back to `pi list` to find the package directory.
+- **`auto` role value dropped.** Cursor's `auto` model alias has no Pi equivalent. Roles take
+  `provider/id[:level]` or `inherit-parent`.
+
 ## Removed from the port
 
 - `make-bot-ui`. Built on Cursor's Grok Bot webhook routines (`update_state`). Pi has no
@@ -53,7 +62,8 @@ port opinionated about the Pi stack. Verify each mapping with a real run in phas
   things (`Cursor`, `Task` tool, `subagent_type`, `~/.cursor`, `AskQuestion`, `/loop`). Run it
   after every upstream merge.
 - **NOTICE.md.** Per-component table: path, upstream commit, copyright holder, license file.
-  cursor-team-kit is (c) Cursor, not Lauren Tan.
+  cursor-team-kit is (c) Cursor, not Lauren Tan. The routing block in `setup-pstack` step 7 is
+  adapted from pstack-claude's session-start text (MIT, (c) Michael Denyer); credit it there.
 - **Single-family panels.** When the user's roles file resolves a panel to one model family,
   vary the reasoning level instead and say in the verdict that model diversity was reduced.
 - **Per-skill Pi notes to write into the skills while porting:** `comment-sicko` never runs in a
