@@ -56,13 +56,19 @@ record which tools the user has, and make skills and playbooks use that.
 ## Wake and loop mechanism
 
 Cursor's `/loop` serves three uses in pstack. The port maps them to Pi packages, which makes the
-port opinionated about the Pi stack. Verify each mapping with a real run in phase 4.
+port opinionated about the Pi stack.
 
 - Loop until a predicate (Autonomous run, Visual parity, overnight runs): pi-goal-x.
 - Periodic tick (`/loop 1h` audit in Multi-phase plan and Autopilot-full): a `bg_run` sleep
   timer whose exit wakes the session, rearmed after every tick. Without pi-background-tasks, a
   one-shot `schedule.create`, whose run notification wakes the session.
 - Event wake (CI, merge, ref advancing): async subagent watcher or `bg_run`.
+
+Checked in phase 4 with `pi --mode rpc` (a live session; `pi -p` exits after one turn, so nothing
+can wake it): a pi-goal-x goal plus three 15-second `bg_run` timers wrote three ticks and completed
+the goal. Two costs remain. While a timer runs, pi-goal-x sends continuation prompts, so the agent
+spends two or three idle turns before the loop stops and the timer wakes it again. Once the agent
+armed a second timer while one was still running. The `schedule.create` fallback is unchecked.
 
 ## Not ported yet
 
