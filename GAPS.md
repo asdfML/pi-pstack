@@ -98,5 +98,5 @@ armed a second timer while one was still running. The `schedule.create` fallback
 - **Package dependencies.** Pi packages cannot declare other Pi packages as dependencies;
   `dependencies` in `package.json` only covers npm modules imported by extensions. Required:
   pi-subagents, pi-goal-x. Optional: pi-background-tasks, a todo tool, a question tool, an MCP
-  adapter for `why` sources. Plan: list them in the README with one `pi install` line, and have
-  `/skill:setup-pstack` check which tools are present and tell the user what to install.
+  adapter for `why` sources. The README lists the `pi install` lines, and `/skill:setup-pstack`
+  checks which tools are present. Replace the local-clone line once the package is published.
