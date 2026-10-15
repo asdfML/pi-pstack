@@ -3,9 +3,22 @@
   "version": "0.15.25-pi.0",
   "description": "Pi port of pstack (poteto-mode) from cursor/plugins",
   "license": "MIT",
-  "keywords": ["pi-package"],
+  "keywords": [
+    "pi-package"
+  ],
   "pi": {
-    "skills": ["./skills"],
-    "subagents": { "agents": ["./agents"] }
-  }
+    "skills": [
+      "./skills"
+    ],
+    "subagents": {
+      "agents": [
+        "./agents"
+      ]
+    }
+  },
+  "author": "psboldyrev",
+  "contributors": [
+    "Lauren Tan (original pstack author)"
+  ],
+  "repository": "https://github.com/cursor/plugins/tree/main/pstack"
 }
