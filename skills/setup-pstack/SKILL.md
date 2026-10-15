@@ -19,15 +19,24 @@ Look at the tools this session exposes. If only the `subagents_enable` loader is
 
 Then run `subagent({ action: "list" })`. It must show `poteto-agent`, `general-purpose`, `general-purpose-readonly`, and `comment-sicko`. If any is missing, the pstack package is not installed as a Pi package. Tell the user to `pi install` it.
 
-### 2. Detect available models
+### 2. Point the pstack agents at this package
+
+A parent passes `poteto-agent` the absolute path of the poteto-mode skill in every prompt. As a fallback that needs no shell, pi-subagents can hand the agent that path itself through `defaultReads`. Offer once to set it, and set it on yes. Re-running this skill keeps it current.
+
+- The path is `poteto-mode/SKILL.md` in the directory that holds this skill's directory. Resolve it to an absolute path.
+- Read `settings.json` in the Pi agent directory. Set `subagents.agentOverrides["poteto-agent"].defaultReads` to a one-entry list with that path. Keep every other key and every other override field as it is. Write the file back and confirm it still parses as JSON.
+- If a `defaultReads` entry is already there and names another path, the package moved since the last run. Say so and replace it. A path whose file no longer exists is harmless, because pi-subagents skips missing files, but replace it too.
+- On no, change nothing. The parent's path and the agent's `pi list` lookup still work.
+
+### 3. Detect available models
 
 Run `subagent({ action: "models" })`. It lists the models a subagent can use, as `provider/id`. That is the dependable source. If it fails, run `pi --list-models`. Never write a model you have not confirmed is available. `inherit-parent` is always valid even though it is not a detected model.
 
-### 3. Load current state
+### 4. Load current state
 
-The default for every role is `inherit-parent`: the subagent runs on the parent session's model. The role list is the file shape in step 6 below. If `pstack-models.md` already exists, read it and treat its `# budget` line and its role values as the current choices. Otherwise start from the defaults. A line whose role is not in step 6 is from a retired role. Drop it.
+The default for every role is `inherit-parent`: the subagent runs on the parent session's model. The role list is the file shape in step 7 below. If `pstack-models.md` already exists, read it and treat its `# budget` line and its role values as the current choices. Otherwise start from the defaults. A line whose role is not in step 7 is from a retired role. Drop it.
 
-### 4. Budget, map, and confirm
+### 5. Budget, map, and confirm
 
 **(a) Ask for a budget.** Use a structured question tool when one is available, otherwise ask in plain text. Offer these four options with these exact labels, and name the current budget when the file records one. With no file, say that the defaults run every role on the parent model at the parent's reasoning level, so the budget applies only to roles the user assigns a model.
 
@@ -38,15 +47,15 @@ The default for every role is `inherit-parent`: the subagent runs on the parent 
 
 **(b) Apply it.** Build the working table from the current choices. `unlimited`, `large`, `medium`, and `small` set the reasoning suffix of every `provider/id` value, panel entries included, to `:max`, `:xhigh`, `:high`, or `:medium`, replacing any suffix already there. `inherit-parent` takes no suffix and does not change.
 
-**(c) Show the roles and confirm.** Show every role with its value, marking any model not in the detected set as needing a choice. Also list each line step 3 dropped. Ask whether to accept as-is or change specific roles, offering the detected models plus `inherit-parent` as the options. For panel roles (arena runners, architect runners, interrogate reviewers) the value is a list, and one subagent runs per entry, `inherit-parent` entries included, so the list length sets the count. `arena cross-judge pool` is also a list, but Arena selects one value from it whose model family differs from the parent's when possible. `swarm workers` is the default model for every worker unless a race or comparison assigns another model per arm.
+**(c) Show the roles and confirm.** Show every role with its value, marking any model not in the detected set as needing a choice. Also list each line step 4 dropped. Ask whether to accept as-is or change specific roles, offering the detected models plus `inherit-parent` as the options. For panel roles (arena runners, architect runners, interrogate reviewers) the value is a list, and one subagent runs per entry, `inherit-parent` entries included, so the list length sets the count. `arena cross-judge pool` is also a list, but Arena selects one value from it whose model family differs from the parent's when possible. `swarm workers` is the default model for every worker unless a race or comparison assigns another model per arm.
 
 **(d) Check panel diversity.** A panel catches more when its entries come from different model families. If every panel entry resolves to one family, `inherit-parent` included, tell the user that the panels will run the same model several times. The panel skills then vary the reasoning level across entries instead and say in their verdict that model diversity was reduced. When the detected set has models from another provider, offer to put them on the panels.
 
-### 5. Validate
+### 6. Validate
 
 Every `provider/id` written must be in the detected set. `inherit-parent` always passes. If a chosen model is not available, stop and ask again.
 
-### 6. Write the file
+### 7. Write the file
 
 Write `pstack-models.md` with a `# budget` line naming the chosen label and its reasoning level, and one line per role, using the same labels poteto-mode uses. Overwrite the whole file so re-runs stay idempotent. Shape:
 
@@ -74,9 +83,9 @@ architect runners: inherit-parent, inherit-parent
 interrogate reviewers: inherit-parent, inherit-parent
 ```
 
-### 7. Offer automatic routing (optional)
+### 8. Offer automatic routing (optional)
 
-Every pstack skill is hidden from automatic invocation, so pstack runs only when the user types `/skill:poteto-mode` or another `/skill:` command. Offer once to change that by adding a routing block to `AGENTS.md` in the Pi agent directory, which Pi loads into every session. Default to no. On yes, write the block below, filling in the absolute path of `../poteto-mode/SKILL.md` from this file. If the file already has a block between the markers, replace it. If the user asks to turn routing off, remove the block and its markers. Tell the user to re-run this skill if the pstack package moves, because the block names its path.
+Every pstack skill is hidden from automatic invocation, so pstack runs only when the user types `/skill:poteto-mode` or another `/skill:` command. Offer once to change that by adding a routing block to `AGENTS.md` in the Pi agent directory, which Pi loads into every session. Default to no. On yes, write the block below, filling in the absolute path of `../poteto-mode/SKILL.md` from this file. If the file already has a block between the markers, replace it. If the user asks to turn routing off, remove the block and its markers. If a block already exists and names another path, the package moved since the last run. Say so and update the path even when the user keeps routing on.
 
 ```
 <!-- pstack-routing:start -->
@@ -92,10 +101,10 @@ For smaller tasks, such as a contained change to one file with an obvious test, 
 <!-- pstack-routing:end -->
 ```
 
-### 8. Confirm
+### 9. Confirm
 
 Tell the user the file was written and that it applies to the next subagent a pstack skill spawns, with no restart. Re-running this skill updates it.
 
-### 9. Offer a verification skill (optional)
+### 10. Offer a verification skill (optional)
 
 Check whether the project has a way to drive the real app for proof (a `verify-*` skill, or an existing harness). If not, offer once: "want a project-local verification skill, so agents can drive the app the way a user does and prove changes work? I can generate one with /skill:create-verification-skill." On yes, run `/skill:create-verification-skill`. It writes the skill under the project's `.agents/skills/`. On no, move on without pushing.

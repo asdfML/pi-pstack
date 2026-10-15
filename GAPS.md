@@ -29,7 +29,10 @@ record which tools the user has, and make skills and playbooks use that.
 - **Hidden skills never reach subagents.** pi-subagents drops every skill with
   `disable-model-invocation: true` from a child's prompt, even when the agent names it in
   `skills`. All pstack skills are hidden, so `poteto-agent` gets the poteto-mode path from its
-  parent, and falls back to `pi list` to find the package directory.
+  parent; as fallbacks, `/skill:setup-pstack` sets `subagents.agentOverrides["poteto-agent"].defaultReads`
+  to the skill's absolute path (pi-subagents skips the entry if the file is gone), and the agent
+  can find the package with `pi list`. A pi-subagents option to pass hidden skills an agent
+  definition names explicitly would remove these workarounds.
 - **`auto` role value dropped.** Cursor's `auto` model alias has no Pi equivalent. Roles take
   `provider/id[:level]` or `inherit-parent`.
 
