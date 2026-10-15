@@ -26,7 +26,7 @@ Before spawning reviewers, state the intent in one clear paragraph from the user
 
 Launch all reviewers in a single message with `subagent` calls and `async: true`, one per entry on the `interrogate reviewers` line in `pstack-models.md` in the Pi agent directory (`$PI_CODING_AGENT_DIR`, else `~/.pi/agent`), labeled Reviewer A, B, and so on to match the entry count. If the file or that line is missing, launch two reviewers on the parent model.
 
-Each reviewer gets `agent: "general-purpose-readonly"` and `model` set to its configured entry. Omit `model` for an `inherit-parent` entry, so that reviewer runs on the parent model. When two or more entries resolve to the same model, give them different reasoning levels and say in the verdict that model diversity was reduced.
+Each reviewer gets `agent: "general-purpose-readonly"` and `model` set to its configured entry. Omit `model` for an `inherit-parent` entry, so that reviewer runs on the parent model. When two or more entries resolve to the same model, give them different reasoning levels by passing that model's exact `provider/id` from `subagent({ action: "models" })` with a `:level` suffix, and say in the verdict that model diversity was reduced.
 
 If `subagent` rejects a configured entry, run that reviewer on the parent model and say so. Do not block the review on the model issue.
 
