@@ -59,9 +59,9 @@ Cursor's `/loop` serves three uses in pstack. The port maps them to Pi packages,
 port opinionated about the Pi stack. Verify each mapping with a real run in phase 4.
 
 - Loop until a predicate (Autonomous run, Visual parity, overnight runs): pi-goal-x.
-- Periodic tick (`/loop 1h` audit in Multi-phase plan and Autopilot-full): pi-subagents
-  `schedule.create`. The tick runs as a scheduled run whose notification wakes the session, not
-  as the parent re-prompting itself. Check that this keeps the playbook's drift audit intact.
+- Periodic tick (`/loop 1h` audit in Multi-phase plan and Autopilot-full): a `bg_run` sleep
+  timer whose exit wakes the session, rearmed after every tick. Without pi-background-tasks, a
+  one-shot `schedule.create`, whose run notification wakes the session.
 - Event wake (CI, merge, ref advancing): async subagent watcher or `bg_run`.
 
 ## Not ported yet

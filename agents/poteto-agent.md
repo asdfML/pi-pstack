@@ -6,6 +6,7 @@ inheritProjectContext: true
 inheritSkills: true
 defaultContext: fresh
 async: true
+allowNestedSubagents: true
 ---
 
 # Poteto subagent

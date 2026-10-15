@@ -27,7 +27,7 @@ const rules = [
 
 function* files(path) {
   if (statSync(path).isDirectory()) {
-    for (const name of readdirSync(path)) yield* files(join(path, name));
+    for (const name of readdirSync(path)) if (name !== "node_modules") yield* files(join(path, name));
   } else if (/\.(md|mjs|ts|sh)$/.test(path)) yield path;
 }
 

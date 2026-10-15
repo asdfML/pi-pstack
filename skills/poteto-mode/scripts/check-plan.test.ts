@@ -20,7 +20,7 @@ ${rule}
 ### PR mechanics
 ### Verdict and merge
 ### Boot recipe
-\`git show origin/main:\` /loop 1h status message
+Re-read them at every tick. 1-hour timer status message
 
 ## PR 1
 **Depends on.** None.

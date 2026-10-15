@@ -28,9 +28,12 @@ Reference for humans syncing upstream. Agents never read this file.
 | `-fast` model slugs, fast mode | removed; the user configures speed in setup |
 | `~/.cursor/rules/pstack-models.mdc` | `~/.pi/agent/pstack-models.md` |
 | `environment: "cloud"` | local run; isolation rule in GAPS.md |
+| agent store (path in the system prompt) | `.pi/pstack/` in the main checkout, excluded through `.git/info/exclude` (**Store** in poteto-mode) |
+| `git show origin/main:pstack/skills/...` | read from the installed package (`<pstack>/...`) |
+| Cursor restart | Pi restart; check `subagent({ action: "status" })` for surviving async runs |
 | `/<skill>` | `/skill:<skill>` |
 | `/loop until <predicate>` | pi-goal-x goal with the predicate as completion requirements |
-| `/loop <interval> <tick>` | pi-subagents `schedule.create` with `every` |
+| `/loop <interval> <tick>` | `bg_run` sleep timer rearmed after every tick; without `bg_run`, a one-shot `schedule.create` |
 | event watcher that wakes the parent | async subagent or `bg_run` (pi-background-tasks) |
 | `AskQuestion` | ask the user (structured question tool when available) |
 | `~/.cursor/projects/*/agent-transcripts` | `~/.pi/agent/sessions/--<cwd>--/` for this workspace only (`<cwd>` without the leading `/`, each `/` as `-`; `$PI_CODING_AGENT_DIR` when set). Entries form a tree: follow `parentId` back from the last entry |
