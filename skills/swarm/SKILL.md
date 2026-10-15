@@ -27,7 +27,7 @@ Open a todolist with one entry per phase before launching anything.
 
 ## Phase B: Fan out
 
-Spawn all N workers in one message as `subagent` calls, except perf and measurement workers (below), with `agent: "general-purpose"`, `async: true`, and the step 4 model, left unset for `inherit-parent`. Workers run on this machine, so isolate them by what they do:
+Spawn all N workers in one message as separate `subagent` calls, not a workflow, except perf and measurement workers (below), with `agent: "general-purpose"`, `async: true`, and the step 4 model, left unset for `inherit-parent`. Workers run on this machine, so isolate them by what they do:
 
 - A worker that only reads shares the working directory.
 - A worker that checks out a SHA, builds, or writes gets `worktree: true`. It needs a clean working tree. Commit your own in-progress work first. Never commit or stash changes you did not make. Give those workers separate output directories instead. A worktree worker's changes come back as a patch in the run's worktree handoff, and the parent applies the one it keeps. Worktrees with no changes are cleaned up.

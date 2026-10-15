@@ -22,7 +22,7 @@ For each candidate, find the first entry with `message.role` `user`. Take the fi
 
 ## 2. Spawn three reviewers in parallel
 
-One message, three `subagent` calls, `agent: "general-purpose"`, `async: true`. Reviewers need MCP access to look up the tickets, chat threads, and observability traces the transcript references, and `general-purpose-readonly` has no MCP tools.
+One message, three separate `subagent` calls (not a workflow), `agent: "general-purpose"`, `async: true`. Reviewers need MCP access to look up the tickets, chat threads, and observability traces the transcript references, and `general-purpose-readonly` has no MCP tools.
 
 Each reviewer and the synthesizer name a role line in `pstack-models.md` in the Pi agent directory (`$PI_CODING_AGENT_DIR`, else `~/.pi/agent`). Set `model` to that line's value. Omit `model` when the file or the line is missing or the value is `inherit-parent`, so the subagent runs on the parent model. If `subagent` rejects a model, run that subagent on the parent model and say so. Pick each subagent's reasoning level for the job, per the Subagents section of the **poteto-mode** skill.
 
