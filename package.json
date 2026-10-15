@@ -1,0 +1,11 @@
+{
+  "name": "pi-pstack",
+  "version": "0.15.25-pi.0",
+  "description": "Pi port of pstack (poteto-mode) from cursor/plugins",
+  "license": "MIT",
+  "keywords": ["pi-package"],
+  "pi": {
+    "skills": ["./skills"],
+    "subagents": { "agents": ["./agents"] }
+  }
+}
