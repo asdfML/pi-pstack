@@ -29,6 +29,9 @@ Reference for humans syncing upstream. Agents never read this file.
 | `~/.cursor/rules/pstack-models.mdc` | `~/.pi/agent/pstack-models.md` |
 | `environment: "cloud"` | local run; isolation rule in GAPS.md |
 | `/<skill>` | `/skill:<skill>` |
+| `/loop until <predicate>` | pi-goal-x goal with the predicate as completion requirements |
+| `/loop <interval> <tick>` | pi-subagents `schedule.create` with `every` |
+| event watcher that wakes the parent | async subagent or `bg_run` (pi-background-tasks) |
 | `AskQuestion` | ask the user (structured question tool when available) |
 | `~/.cursor/projects/*/agent-transcripts` | `~/.pi/agent/sessions` |
 | Cursor built-in `create-skill` | `writing-for-agents` skill |
