@@ -7,7 +7,7 @@ This project is not affiliated with or endorsed by Lauren Tan, Cursor, or Anysph
 "poteto-mode" are names from the original project, used here only to identify what this port is
 based on. All credit for the skills, playbooks, and principles goes to the original author.
 
-Licensed under MIT, like the original. See [LICENSE](LICENSE). The upstream source and version
+Licensed under MIT, like the original. See [LICENSE](LICENSE), [LICENSE-cursor-team-kit](LICENSE-cursor-team-kit), and [NOTICE.md](NOTICE.md). The upstream source and version
 are recorded in [UPSTREAM.md](UPSTREAM.md). How the port differs from upstream is in
 [PORTING.md](PORTING.md) and [GAPS.md](GAPS.md).
 

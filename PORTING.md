@@ -38,5 +38,5 @@ Reference for humans syncing upstream. Agents never read this file.
 | `AskQuestion` | ask the user (structured question tool when available) |
 | `~/.cursor/projects/*/agent-transcripts` | `~/.pi/agent/sessions/--<cwd>--/` for this workspace only (`<cwd>` without the leading `/`, each `/` as `-`; `$PI_CODING_AGENT_DIR` when set). Entries form a tree: follow `parentId` back from the last entry |
 | Cursor built-in `create-skill` | the **Authoring or modifying a skill** playbook plus Pi's `docs/skills.md` |
-| `cursor-team-kit` `deslop`, `control-ui`, `control-cli` | ported into this package (copyright Cursor, needs `LICENSE-cursor-team-kit`) |
+| `cursor-team-kit` `deslop`, `control-ui`, `control-cli` | ported into this package, visible to the model as upstream (copyright Cursor, `LICENSE-cursor-team-kit`, `NOTICE.md`) |
 | skills a skill generates for a project (`create-verification-skill`, `automate-me`) | `.agents/skills/<name>/` in the project |

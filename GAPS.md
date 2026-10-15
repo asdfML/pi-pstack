@@ -79,25 +79,11 @@ armed a second timer while one was still running. The `schedule.create` fallback
 
 ## Planned (from reviewing michael-denyer/pstack-claude)
 
-- **Denylist check.** A script that fails when `skills/` or `agents/` still name Cursor-only
-  things (`Cursor`, `Task` tool, `subagent_type`, `~/.cursor`, `AskQuestion`, `/loop`). Run it
-  after every upstream merge.
-- **NOTICE.md.** Per-component table: path, upstream commit, copyright holder, license file.
-  cursor-team-kit is (c) Cursor, not Lauren Tan. The routing block in `setup-pstack` step 9 is
-  adapted from pstack-claude's session-start text (MIT, (c) Michael Denyer); credit it there.
-- **Single-family panels.** When the user's roles file resolves a panel to one model family,
-  vary the reasoning level instead and say in the verdict that model diversity was reduced.
-- **Per-skill Pi notes to write into the skills while porting:** `comment-sicko` never runs in a
-  worktree (a worktree starts from `HEAD` and lacks uncommitted changes); the `why` synthesizer
-  starts only after every investigator has reported; `create-verification-skill` and
-  `automate-me` write to `.agents/skills/`.
-- **Optional auto-routing.** pstack only runs when the user types `/skill:poteto-mode`, because
-  every skill sets `disable-model-invocation`. `/skill:setup-pstack` offers to add a short
-  routing paragraph to `~/.pi/agent/AGENTS.md` ("for multi-file changes, design choices, and
-  unknown bugs, use `/skill:poteto-mode`"). Off unless the user opts in.
+- **Per-skill Pi note for phase 6:** `create-verification-skill` and `automate-me` write to
+  `.agents/skills/`.
 - **Alternative wake mechanism.** pstack-claude ships its own `/loop` and `schedule_wakeup`
-  (in-session re-prompt, MIT, about 230 lines). Revisit if pi-goal-x plus `schedule.create`
-  falls short in phase 4.
+  (in-session re-prompt, MIT, about 230 lines). Revisit if the idle continuation turns of
+  pi-goal-x plus `bg_run` timers cost too much.
 
 ## Open questions
 
