@@ -41,6 +41,10 @@ record which tools the user has, and make skills and playbooks use that.
   to the skill's absolute path (pi-subagents skips the entry if the file is gone), and the agent
   can find the package with `pi list`. A pi-subagents option to pass hidden skills an agent
   definition names explicitly would remove these workarounds.
+- **Nested subagent calls need permission.** With pi-permission-system set to ask, every
+  `subagent` call a child makes asks the user (or the authorizer chain) through the parent. In
+  `pi -p` there is no UI, so nested calls are rejected, and depth-3 chains (`poteto-agent` →
+  `comment-sicko` → `how` explorers) are untested. Verify interactively in phase 4.
 - **`auto` role value dropped.** Cursor's `auto` model alias has no Pi equivalent. Roles take
   `provider/id[:level]` or `inherit-parent`.
 
@@ -73,7 +77,7 @@ port opinionated about the Pi stack. Verify each mapping with a real run in phas
   things (`Cursor`, `Task` tool, `subagent_type`, `~/.cursor`, `AskQuestion`, `/loop`). Run it
   after every upstream merge.
 - **NOTICE.md.** Per-component table: path, upstream commit, copyright holder, license file.
-  cursor-team-kit is (c) Cursor, not Lauren Tan. The routing block in `setup-pstack` step 7 is
+  cursor-team-kit is (c) Cursor, not Lauren Tan. The routing block in `setup-pstack` step 9 is
   adapted from pstack-claude's session-start text (MIT, (c) Michael Denyer); credit it there.
 - **Single-family panels.** When the user's roles file resolves a panel to one model family,
   vary the reasoning level instead and say in the verdict that model diversity was reduced.
