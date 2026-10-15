@@ -70,6 +70,13 @@ port opinionated about the Pi stack. Verify each mapping with a real run in phas
 
 ## Open questions
 
+- **Generated and customized skills.** `create-verification-skill` and `automate-me` write new
+  skills into the project's `.agents/skills/`. Unclear yet: how a generated skill relates to the
+  package across `pi update` (it is not overwritten, but it does not get upstream fixes either),
+  how a user customizes a packaged skill without forking (today: copy it into `.agents/skills/`,
+  which collides by name with the packaged one), and whether pstack should support project
+  overrides the way pstack-claude's project playbooks do.
+
 - **Skill names.** `how`, `why`, `recall`, `correct`, `tdd` are generic and may collide with other
   packages. Decide on a `pstack-` prefix before a public release.
 - **Package dependencies.** Pi packages cannot declare other Pi packages as dependencies;
