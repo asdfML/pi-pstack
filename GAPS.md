@@ -10,6 +10,12 @@ revisit.
   read-only lanes share the project directory; lanes that check out a SHA, build, or write get
   their own git worktree (`worktree: true`); lanes that run the app also get their own port from
   the brief; perf lanes run sequentially, never alongside other lanes.
+- **Worktrees need a clean tree.** pi-subagents refuses `worktree: true` while the working tree
+  has uncommitted changes. Skills tell the agent to commit or stash first, or to fall back to a
+  separate output directory.
+- **No skill-authoring loop.** Cursor's built-in `create-skill` runs draft, test, and iterate
+  loops and a description-optimization loop. Pi has only its skills documentation, so `reflect`
+  and the authoring playbook describe those loops in prose.
 - **Scale.** `orchestrate` assumes dozens to hundreds of subagents. Local parallelism is bounded
   by the machine and pi-subagents concurrency limits.
 

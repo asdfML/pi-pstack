@@ -54,7 +54,7 @@ Commit it only when the work is ambitious enough that a reviewer needs the trail
 
 ## Audit the log against the transcript
 
-At the end of the run, before handing back, check the log told the truth. Read this run's transcript under the active workspace's `agent-transcripts/` directory (the system prompt names the path). Don't glob across `~/.cursor/projects/*/`. That reads unrelated private chats. Walk this run's rows against what actually happened. Each stretch of them begins at one of this run's `start` rows, or at the first row if this run created the log, and ends at the next `start` row of another run:
+At the end of the run, before handing back, check the log told the truth. Read this run's transcript. Pi stores this workspace's sessions in `sessions/--<cwd>--/` under the Pi agent directory (`$PI_CODING_AGENT_DIR`, else `~/.pi/agent`), where `<cwd>` is the working directory without its leading `/` and with each `/` as `-`. Each `<timestamp>_<id>.jsonl` opens with a `type: "session"` header line. Every later line is an entry with an `id` and a `parentId`, and a message entry has `type: "message"` with `message.role` `user`, `assistant`, or `toolResult`. A file keeps abandoned branches, so follow `parentId` back from the last entry for the conversation that actually happened. Subagent transcripts live in that directory's `subagent-artifacts/*_transcript.jsonl`. Read only this workspace's directory. Don't glob across `sessions/*/`. That reads unrelated private chats. Walk this run's rows against what actually happened. Each stretch of them begins at one of this run's `start` rows, or at the first row if this run created the log, and ends at the next `start` row of another run:
 
 - Check that every row maps to a real decision or action.
 - Check that each row's evidence resolves and shows what the row claims.
@@ -64,7 +64,7 @@ Correct the log, not the story. The audit never edits or removes a row, even an 
 
 ## Cross-model review of the trail
 
-Before handing back, spawn a subagent on a different model family from the one that did the work. Self-review is not a substitute. The subagent reads the audit trail and the run's transcript, then flags what the user should pay attention to. Not a redo of the work, a scan for what's suboptimal or risky. Pick each subagent's reasoning level for the job, per the Subagents section of the **poteto-mode** skill.
+Before handing back, spawn a `general-purpose-readonly` subagent on a different model family from the one that did the work, picked from the models in `pstack-models.md` in the Pi agent directory (`$PI_CODING_AGENT_DIR`, else `~/.pi/agent`) or `subagent({ action: "models" })`. If only one family is available, use another reasoning level and say that the review was not cross-model. Self-review is not a substitute. The subagent reads the audit trail and the run's transcript, then flags what the user should pay attention to. Not a redo of the work, a scan for what's suboptimal or risky. Pick each subagent's reasoning level for the job, per the Subagents section of the **poteto-mode** skill.
 
 - Decisions logged with weak or absent evidence.
 - Verification steps skipped or claimed without proof in the transcript.
