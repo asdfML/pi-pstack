@@ -10,6 +10,8 @@ revisit.
   read-only lanes share the project directory; lanes that check out a SHA, build, or write get
   their own git worktree (`worktree: true`); lanes that run the app also get their own port from
   the brief; perf lanes run sequentially, never alongside other lanes.
+  Later: spawn heavy lanes on devboxes or remote machines (for example through herdr), so
+  swarm and orchestrate get real isolation and their own CPU again, as Cursor's cloud workers do.
 - **Worktrees need a clean tree.** pi-subagents refuses `worktree: true` while the working tree
   has uncommitted changes. Skills tell the agent to commit or stash first, or to fall back to a
   separate output directory.
