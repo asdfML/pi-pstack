@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Fails when ported files still name Cursor-only tools, paths, or products.
-// Usage: node tools/denylist.mjs [path...]   (default: skills agents)
+// Usage: node tools/denylist.mjs [path...]   (default: skills agents docs)
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
@@ -33,7 +33,7 @@ function* files(path) {
 
 const targets = process.argv.slice(2);
 let hits = 0;
-for (const target of targets.length ? targets : ["skills", "agents"]) {
+for (const target of targets.length ? targets : ["skills", "agents", "docs"]) {
   for (const file of files(join(root, target))) {
     readFileSync(file, "utf8").split("\n").forEach((line, i) => {
       for (const [re, label, only] of rules) {

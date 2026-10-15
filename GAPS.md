@@ -51,7 +51,13 @@ record which tools the user has, and make skills and playbooks use that.
 ## Removed from the port
 
 - `make-bot-ui`. Built on Cursor's Grok Bot webhook routines (`update_state`). Pi has no
-  equivalent. `poteto-help` and `docs/guide/09-make-it-yours.md` still mention it upstream.
+  equivalent.
+- `automations/benny`. Two Cursor Automations for Slack issue reports: one triages each report,
+  the other reproduces confirmed bugs and may draft a fix. They run on Cursor's cloud automation
+  product with Slack triggers. A Pi version could start each stage with a scheduled `subagent`
+  run, an external trigger, or herdr, and read Slack through an MCP server.
+- `plugin.json` and `.cursor-plugin/plugin.json`, the Cursor plugin manifests. `package.json` is
+  the Pi manifest.
 
 ## Wake and loop mechanism
 
@@ -69,13 +75,6 @@ can wake it): a pi-goal-x goal plus three 15-second `bg_run` timers wrote three 
 the goal. Two costs remain. While a timer runs, pi-goal-x sends continuation prompts, so the agent
 spends two or three idle turns before the loop stops and the timer wakes it again. Once the agent
 armed a second timer while one was still running. The `schedule.create` fallback is unchecked.
-
-## Not ported yet
-
-- `docs/guide/` (10 pages, about 1100 lines). A human tutorial: setup, poteto-mode, understand,
-  design, build and clean, verify and ship, overnight runs, principles, making it yours, recipes
-  and pitfalls. Not loaded by agents; `poteto-help` links to it. Decide whether to port, trim, or
-  link upstream.
 
 ## Planned (from reviewing michael-denyer/pstack-claude)
 
