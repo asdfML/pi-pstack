@@ -72,11 +72,17 @@ port opinionated about the Pi stack.
 
 Checked in phase 4 with `pi --mode rpc` (a live session; `pi -p` exits after one turn, so nothing
 can wake it): a pi-goal-x goal plus three 15-second `bg_run` timers wrote three ticks and completed
-the goal. Two costs remain. While a timer runs, pi-goal-x sends continuation prompts, so the agent
-spends two or three idle turns before the loop stops and the timer wakes it again. Once the agent
-armed a second timer while one was still running; the playbooks now rearm only when the timer
-fires and check `bg_status` first, not yet rechecked in a live run. The `schedule.create`
-fallback is unchecked.
+the goal. Once the agent armed a second timer while one was still running, so the playbooks now
+rearm only when the timer fires and check `bg_status` (or `schedule.list`) before arming.
+
+Rechecked the same way after that fix. With `bg_run`, a watcher wake during a running 70-second
+heartbeat armed nothing, and the heartbeat was armed exactly twice. Without `bg_run`, one-shot
+`schedule.create` timers (`sessionOnly: true`, workflow `return "tick"`) woke the session twice;
+goal continuations in between found the pending schedule through `schedule.list` and armed no
+second one, and `schedule.delete` after each fire left no records behind. Two costs remain.
+While a timer runs, pi-goal-x sends continuation prompts, so a 70-second wait cost about ten idle
+turns. In every run the goal's completion auditor (`claude-bridge/claude-opus-5-5`) returned empty
+output twice, so the agent paused the goal instead of completing it.
 
 ## Planned (from reviewing michael-denyer/pstack-claude)
 
