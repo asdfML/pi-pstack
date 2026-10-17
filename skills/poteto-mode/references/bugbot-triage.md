@@ -85,7 +85,7 @@ Historical data showed humans sometimes dismiss security/data-flow comments. Tre
 
 ## Candidate learnings from recent babysits
 
-Append new candidate learnings to the same project lessons file during or after babysitting when they look team-useful but not yet mature. Prefer promoting recurring candidates into the section above once several PRs confirm the pattern.
+Append new candidate learnings to the same project lessons file during or after babysitting when they look team-useful but not yet mature. Once several PRs confirm a candidate, promote it within that lessons file by raising its confidence.
 
 ### Manual reimplementations of native browser behavior
 

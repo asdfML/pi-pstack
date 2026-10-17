@@ -1,49 +1,65 @@
 #!/bin/sh
-# Print both pstack lesson layers and every lesson in them. Run from the starting directory.
-# --create also creates the project layer and keeps it out of git through .git/info/exclude.
-# The project layer is the nearest .agents/pstack-lessons/ above the working directory, never in
-# $HOME or above it; if none exists, the one to create at the store's root.
+# Print the pstack lesson layers and every lesson in them. Run from the starting directory.
+# Project layers are every .agents/pstack-lessons/ at or above it, below $HOME; the nearest one is
+# where new lessons go. With none, the write target is the store's root.
+# --create also creates the write target and keeps it out of git through .git/info/exclude.
 agent="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
+case "$agent" in "~") agent=$HOME ;; "~/"*) agent="$HOME/${agent#"~/"}" ;; esac
 user="$agent/pstack-lessons"
 start=$(pwd -P)
 home=$(cd "$HOME" && pwd -P)
 
-project=""
-d="$start"
-while [ "$d" != "/" ] && [ "$d" != "$home" ]; do
-  case "$home" in "$d"/*) break ;; esac
-  if [ -d "$d/.agents/pstack-lessons" ]; then project="$d/.agents/pstack-lessons"; break; fi
+# True when $1 can hold a project layer: not /, not $HOME, not an ancestor of $HOME.
+allowed() {
+  [ "$1" != / ] && [ "$1" != "$home" ] || return 1
+  case "$home/" in "$1"/*) return 1 ;; esac
+}
+
+layers="" # nearest first, one per line
+d=$start
+while allowed "$d"; do
+  [ -d "$d/.agents/pstack-lessons" ] && layers="$layers$d/.agents/pstack-lessons
+"
   d=$(dirname "$d")
 done
-if [ -z "$project" ] && [ "$start" != "$home" ]; then
-  case "$home" in "$start"/*) ;; *)
-    common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
-    root=$start; [ -n "$common" ] && root=$(dirname "$common")
-    project="$root/.agents/pstack-lessons" ;;
-  esac
+
+target=$(printf '%s' "$layers" | head -n 1)
+if [ -z "$target" ]; then
+  common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
+  root=$start
+  [ -n "$common" ] && root=$(dirname "$common")
+  allowed "$root" && target="$root/.agents/pstack-lessons"
 fi
 
-if [ "$1" = "--create" ] && [ -n "$project" ]; then
-  mkdir -p "$project"
-  common=$(git -C "$project" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
+if [ "$1" = "--create" ] && [ -n "$target" ]; then
+  mkdir -p "$target" || exit 1
+  common=$(git -C "$target" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
   if [ -n "$common" ]; then
-    mkdir -p "$common/info"
-    grep -qxF '.agents/pstack-lessons/' "$common/info/exclude" 2>/dev/null ||
-      echo '.agents/pstack-lessons/' >>"$common/info/exclude"
+    line="/$(git -C "$target" rev-parse --show-prefix)"
+    mkdir -p "$common/info" || exit 1
+    grep -qxF "$line" "$common/info/exclude" 2>/dev/null ||
+      echo "$line" >>"$common/info/exclude" || exit 1
   fi
+  [ -z "$layers" ] && layers="$target
+"
 fi
 
-layer() {
-  if [ -z "$2" ]; then echo "$1 layer: none"; return; fi
-  if [ -d "$2" ]; then echo "$1 layer: $2"; else echo "$1 layer: $2 (not created yet)"; fi
-}
-layer user "$user"
-layer project "$project"
-for dir in "$user" "$project"; do
-  [ -n "$dir" ] && [ -d "$dir" ] || continue
-  [ "$dir" = "$user" ] && name=user || name=project
-  (cd "$dir" && find -L . -type f -name '*.md' | sed 's#^\./##' | sort) | while read -r f; do
-    printf '\n== %s lesson for %s\n' "$name" "$f"
-    cat "$dir/$f"
+echo "user layer: $user"
+if [ -z "$target" ]; then
+  echo "project write target: none"
+elif [ -d "$target" ]; then
+  echo "project write target: $target"
+else
+  echo "project write target: $target (not created yet)"
+fi
+echo "Lessons follow in rising priority: a later lesson wins over an earlier one for the same file."
+
+show() {
+  [ -d "$1" ] || return 0
+  (cd "$1" && find -L . -type f -name '*.md' | sed 's#^\./##' | sort) | while IFS= read -r f; do
+    printf '\n== lesson for %s from %s\n' "$f" "$1"
+    cat "$1/$f"
   done
-done
+}
+show "$user"
+printf '%s' "$layers" | sed '1!G;h;$!d' | while IFS= read -r dir; do show "$dir"; done

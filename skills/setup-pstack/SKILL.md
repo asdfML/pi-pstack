@@ -115,11 +115,9 @@ pstack keeps the user's amendments to its skills as lessons outside the package,
 <!-- pstack-lessons:start -->
 ## pstack lessons
 
-Before you follow a skill from `<absolute path>/`, a skill invoked with `/skill:` included, run `<absolute path>/poteto-mode/scripts/lessons.sh` from the working directory once per session and apply the lessons it prints for the files you use. A lesson adds to the file. On a conflict the project layer wins over the user layer, and both win over the file. Write lessons per the Lessons section of `<absolute path>/poteto-mode/SKILL.md`, never into the package.
+Before you follow a skill from `<absolute path>/`, a skill invoked with `/skill:` included, run `<absolute path>/poteto-mode/scripts/lessons.sh` from the working directory once per session and apply the lessons it prints for the files you use. A lesson adds to the file. On a conflict the later lesson in the script's output wins, and every lesson wins over the file. Write lessons per the Lessons section of `<absolute path>/poteto-mode/SKILL.md`, never into the package.
 <!-- pstack-lessons:end -->
 ```
-
-If this session runs inside a git repository, also run `<absolute path>/poteto-mode/scripts/lessons.sh --create` there, which creates its project layer and adds it to `.git/info/exclude`. Other repositories get theirs from the first lesson written there.
 
 ### 11. Confirm
 

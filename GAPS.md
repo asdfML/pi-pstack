@@ -89,6 +89,10 @@ armed a second timer while one was still running. The `schedule.create` fallback
   either. Amendments to pstack's own skills are solved by lesson files (**Lessons** in
   poteto-mode). Unchecked: how well agents follow lessons that conflict with the package text.
 
+- **Concurrent lesson writes.** Several sessions can share one project lessons layer, for example
+  task copies that link `.agents` to one workspace. Two sessions editing the same lesson file at
+  once can lose one edit. There is no lock. Revisit if a lost lesson shows up.
+
 - **Package dependencies.** Pi packages cannot declare other Pi packages as dependencies;
   `dependencies` in `package.json` only covers npm modules imported by extensions. Required:
   pi-subagents, pi-goal-x. Optional: pi-background-tasks, a todo tool, a question tool, an MCP
