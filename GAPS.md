@@ -86,6 +86,10 @@ turns. pi-goal-x's `strictExecutionContract` setting removes them: the agent dec
 `update_goal({ continuation: { kind: "wait", deadline } })` after arming a timer, and the `bg_run`
 wake supersedes the wait. The same scenario took 6 turns instead of about 25. Strict mode is a user
 setting, and it pauses the goal after any turn that ends without a `ready` or `wait` declaration.
+Decision: pstack does not use strict mode and accepts the idle turns, because strict mode breaks
+goals under claude-bridge (below). If idle turns on hour-long ticks cost too much, pstack-claude
+(michael-denyer/pstack-claude) ships an in-session `/loop` and `schedule_wakeup` (MIT, about 230
+lines) to port instead.
 
 **pi-goal-x with pi-claude-bridge.** Two problems when the session model is a `claude-bridge` model
 (seen with pi-goal-x 0.32.3 and pi-claude-bridge 0.9.3):
@@ -99,20 +103,13 @@ setting, and it pauses the goal after any turn that ends without a `ready` or `w
   provider's `errorMessage`, so the rejection reads "Auditor produced no approval marker."
   `auditorProjectResources: true` does not help: the auditor session then loads its own
   claude-bridge instance, whose hook records the prompt in that instance's store, while the
-  request still goes through the parent's provider and its store. Workaround: an auditor model
-  outside claude-bridge (`"model": "openai-codex/gpt-6.1-sol"` in `pi-goal-x-settings.json`),
-  which approved and completed a goal in a live run. Upstream fixes: pi-goal-x reports the
-  auditor's provider error; claude-bridge serves nested in-process sessions.
+  request still goes through the parent's provider and its store. Resolved by configuration: the
+  auditor gets a model outside claude-bridge in `pi-goal-x-settings.json`, which approved and
+  completed a goal in a live run. The setup guide (`docs/guide/01-setup.md`) tells users to set it.
 - `update_goal` reaches the model turns after `create_goal`, not on the next turn, although
   pi-goal-x adds it before each turn. Unconfirmed cause: Claude Code gets the tool list only when
   the bridge starts a fresh query. In strict mode the goal pauses before the agent can declare
-  `wait`.
-
-## Planned (from reviewing michael-denyer/pstack-claude)
-
-- **Alternative wake mechanism.** pstack-claude ships its own `/loop` and `schedule_wakeup`
-  (in-session re-prompt, MIT, about 230 lines). Revisit if the idle continuation turns of
-  pi-goal-x plus `bg_run` timers cost too much.
+  `wait`, which is why pstack does not use strict mode.
 
 ## Open questions
 

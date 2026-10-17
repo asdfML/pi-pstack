@@ -15,6 +15,17 @@ pi install <pi-pstack source>
 
 Use the pi-pstack source from the [README](../../README.md). `pi list` shows the installed packages.
 
+If your Pi model is a `claude-bridge/...` model, give the pi-goal-x completion auditor a model outside claude-bridge. Otherwise the auditor inherits the bridge model, every request it makes fails, and goals pause instead of completing. Put this in `~/.pi/agent/pi-goal-x-settings.json`, with any model `pi --list-models` shows that is not `claude-bridge/...`:
+
+```json
+{
+  "model": "openai-codex/gpt-6.1-sol",
+  "thinkingLevel": "high"
+}
+```
+
+Open sessions pick it up after a restart or `/goal-refresh`. [GAPS.md](../../GAPS.md) has the cause.
+
 ## Pick your models
 
 Run:
