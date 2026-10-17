@@ -1,3 +1,9 @@
 node_modules/
 .DS_Store
 *.log
+
+# Pi runtime state; .pi/ config such as settings.json or skills/ stays tracked
+.pi/tasks/
+.pi/goals/
+.pi/subagents/
+.pi/pstack/
