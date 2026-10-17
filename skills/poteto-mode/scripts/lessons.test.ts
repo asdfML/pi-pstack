@@ -107,3 +107,15 @@ test("--create fails loudly when it cannot create the layer", () => {
 	chmodSync(locked, 0o555);
 	expect(run(locked, ["--create"]).status).not.toBe(0);
 });
+
+test("from a linked worktree, the write target is the main checkout, excluded there", () => {
+	const main = join(home, "wt-main");
+	mkdirSync(main);
+	git(main, "init", "-q");
+	git(main, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "init");
+	git(main, "worktree", "add", "-q", join(home, "wt-linked"));
+	const out = run(join(home, "wt-linked"), ["--create"]).stdout;
+	expect(out).toContain(`project write target: ${main}/.agents/pstack-lessons\n`);
+	write(join(main, ".agents/pstack-lessons/how/SKILL.md"), "main lesson");
+	expect(git(main, "status", "--porcelain")).toBe("");
+});
