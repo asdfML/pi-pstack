@@ -79,10 +79,26 @@ Rechecked the same way after that fix. With `bg_run`, a watcher wake during a ru
 heartbeat armed nothing, and the heartbeat was armed exactly twice. Without `bg_run`, one-shot
 `schedule.create` timers (`sessionOnly: true`, workflow `return "tick"`) woke the session twice;
 goal continuations in between found the pending schedule through `schedule.list` and armed no
-second one, and `schedule.delete` after each fire left no records behind. Two costs remain.
+second one, and `schedule.delete` after each fire left no records behind.
+
 While a timer runs, pi-goal-x sends continuation prompts, so a 70-second wait cost about ten idle
-turns. In every run the goal's completion auditor (`claude-bridge/claude-opus-5-5`) returned empty
-output twice, so the agent paused the goal instead of completing it.
+turns. pi-goal-x's `strictExecutionContract` setting removes them: the agent declares
+`update_goal({ continuation: { kind: "wait", deadline } })` after arming a timer, and the `bg_run`
+wake supersedes the wait. The same scenario took 6 turns instead of about 25. Strict mode is a user
+setting, and it pauses the goal after any turn that ends without a `ready` or `wait` declaration.
+
+**pi-goal-x with pi-claude-bridge.** Two problems when the session model is a `claude-bridge` model:
+
+- The completion auditor can never approve. It runs in an in-process session without extensions,
+  so claude-bridge never captured its system prompt and fails the request
+  (`prompt_capture_unresolved` in `claude-bridge-diag.log`). pi-goal-x reads only text parts and
+  drops the provider error, so the rejection reads "Auditor produced no approval marker."
+  `auditorProjectResources: true` does not help. Workaround: an auditor model outside
+  claude-bridge (`"model": "openai-codex/gpt-6.1-sol"` in `pi-goal-x-settings.json`), which
+  approved and completed a goal in a live run.
+- `update_goal` reaches the model turns after `create_goal`, not on the next turn. Claude Code
+  appears to get the tool list only when the bridge starts a fresh query. In strict mode the goal
+  pauses before the agent can declare `wait`.
 
 ## Planned (from reviewing michael-denyer/pstack-claude)
 
