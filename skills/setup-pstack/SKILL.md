@@ -109,17 +109,17 @@ For smaller tasks, such as a contained change to one file with an obvious test, 
 
 ### 10. Turn on lessons
 
-pstack keeps the user's amendments to its skills as lessons outside the package, in the layers the **Lessons** section of `../poteto-mode/SKILL.md` defines. That section reaches only runs under poteto-mode. Offer once to add the block below to `AGENTS.md` in the Pi agent directory, so a direct `/skill:how` and the subagents of every pstack skill read lessons too. Default to yes. Fill in the absolute path of the directory that holds this skill's directory, and the Pi agent directory. Replace an existing block between the markers, and update its paths if the package moved. On no, say that lessons apply only under poteto-mode.
+pstack keeps the user's amendments to its skills as lessons outside the package, in the layers the **Lessons** section of `../poteto-mode/SKILL.md` defines. That section reaches only runs under poteto-mode. Offer once to add the block below to `AGENTS.md` in the Pi agent directory, so a direct `/skill:how` and the subagents of every pstack skill read lessons too. Default to yes. Fill in the absolute path of the directory that holds this skill's directory. Replace an existing block between the markers, and update its paths if the package moved. On no, say that lessons apply only under poteto-mode.
 
 ```
 <!-- pstack-lessons:start -->
 ## pstack lessons
 
-After you read a file under `<absolute path>/`, also read the same relative path under `<agent dir>/pstack-lessons/`, then under the project's `.agents/pstack-lessons/`, when they exist. Find the project's directory by searching upward from the working directory, stopping below the home directory. A lesson adds to the file. On a conflict the project layer wins over the user layer, and both win over the file. Write lessons per the Lessons section of `<absolute path>/poteto-mode/SKILL.md`, never into the package.
+Before you follow a skill from `<absolute path>/`, a skill invoked with `/skill:` included, run `<absolute path>/poteto-mode/scripts/lessons.sh` from the working directory once per session and apply the lessons it prints for the files you use. A lesson adds to the file. On a conflict the project layer wins over the user layer, and both win over the file. Write lessons per the Lessons section of `<absolute path>/poteto-mode/SKILL.md`, never into the package.
 <!-- pstack-lessons:end -->
 ```
 
-If this session runs inside a git repository, also add `.agents/pstack-lessons/` to its `.git/info/exclude` when the line is missing. Other repositories get the line from the first skill that writes a lesson there.
+If this session runs inside a git repository, also run `<absolute path>/poteto-mode/scripts/lessons.sh --create` there, which creates its project layer and adds it to `.git/info/exclude`. Other repositories get theirs from the first lesson written there.
 
 ### 11. Confirm
 
