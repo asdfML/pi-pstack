@@ -107,10 +107,24 @@ For smaller tasks, such as a contained change to one file with an obvious test, 
 <!-- pstack-routing:end -->
 ```
 
-### 10. Confirm
+### 10. Turn on lessons
+
+pstack keeps the user's amendments to its skills as lessons outside the package, in the layers the **Lessons** section of `../poteto-mode/SKILL.md` defines. That section reaches only runs under poteto-mode. Offer once to add the block below to `AGENTS.md` in the Pi agent directory, so a direct `/skill:how` and the subagents of every pstack skill read lessons too. Default to yes. Fill in the absolute path of the directory that holds this skill's directory, and the Pi agent directory. Replace an existing block between the markers, and update its paths if the package moved. On no, say that lessons apply only under poteto-mode.
+
+```
+<!-- pstack-lessons:start -->
+## pstack lessons
+
+After you read a file under `<absolute path>/`, also read the same relative path under `<agent dir>/pstack-lessons/`, then under the project's `.agents/pstack-lessons/`, when they exist. Find the project's directory by searching upward from the working directory, stopping below the home directory. A lesson adds to the file. On a conflict the project layer wins over the user layer, and both win over the file. Write lessons per the Lessons section of `<absolute path>/poteto-mode/SKILL.md`, never into the package.
+<!-- pstack-lessons:end -->
+```
+
+If this session runs inside a git repository, also add `.agents/pstack-lessons/` to its `.git/info/exclude` when the line is missing. Other repositories get the line from the first skill that writes a lesson there.
+
+### 11. Confirm
 
 Tell the user the file was written and that it applies to the next subagent a pstack skill spawns, with no restart. Re-running this skill updates it.
 
-### 11. Offer a verification skill (optional)
+### 12. Offer a verification skill (optional)
 
 Check whether the project has a way to drive the real app for proof (a `verify-*` skill, or an existing harness). If not, offer once: "want a project-local verification skill, so agents can drive the app the way a user does and prove changes work? I can generate one with /skill:create-verification-skill." On yes, run `/skill:create-verification-skill`. It writes the skill under the project's `.agents/skills/`. On no, move on without pushing.

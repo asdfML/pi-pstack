@@ -145,9 +145,9 @@ For a run that drifts, [`references/prompting.md`](references/prompting.md) has 
 ## Make pstack my own
 
 - [`/skill:automate-me`](../automate-me/SKILL.md) drafts a personal mode skill from the user's own history, to use alongside `/skill:poteto-mode`.
-- [`/skill:reflect`](../reflect/SKILL.md) after a session turns its lessons into skill edits the user approves.
+- [`/skill:reflect`](../reflect/SKILL.md) after a session turns its lessons into edits the user approves. Amendments to pstack's own skills go to lesson files, in the project's `.agents/pstack-lessons/` or the user's `pstack-lessons/` in the Pi agent directory, so `pi update` keeps them. The Lessons section of [`poteto-mode`](../poteto-mode/SKILL.md) has the rules.
 - `/skill:poteto-mode write a skill for <workflow>` runs the authoring playbook. The eval playbook tests a skill change blind.
-- Fix a misbehaving skill in its own PR, not inside the feature work where it went wrong.
+- Fix a misbehaving skill outside the feature work where it went wrong: a lesson for a pstack skill, its own PR for a project skill.
 
 [Guide page 9](../../docs/guide/09-make-it-yours.md) covers each of these.
 

@@ -50,6 +50,7 @@ File each Backlog item to your team's devex or backlog tracker without waiting. 
 
 Follow each approved row's Routing exactly:
 
+- A row whose target is a file in the pstack package (the directory that holds this skill's directory) becomes a lesson, not an edit, per the **Lessons** section of the **poteto-mode** skill. Name its layer, project or user, in the list you present for approval. A `tune description` row on a pstack skill goes to Backlog, because a lesson cannot change when a skill loads.
 - Trivial existing-skill edit (a one-line bullet, a tightened sentence, a stale fact corrected): the parent does it directly.
 - Substantive existing-skill edit (a new section, a new pattern table, more than ~10 lines): follow the **Authoring or modifying a skill** playbook in the **poteto-mode** skill and Pi's skills documentation (`docs/skills.md` in the Pi package), then draft, test, and iterate.
 - `tune description: <skill path>` (the skill exists but didn't trigger when it should have): rewrite its `description` per Pi's skills documentation, then check it against the prompts that should have triggered it.
@@ -61,7 +62,7 @@ If your environment ships a SKILL.md validator, run it on every touched skill be
 
 Short list, no preamble:
 
-- Edits applied: `<skill path>`. What changed, one line each.
+- Edits applied: `<skill path>` or `<lesson path>`. What changed, one line each.
 - New skills created: `<skill path>`. One line each (rare).
 - Backlog filed to the devex tracker: `<issue title>` (`<tags>`). One line each.
 - Dropped: one line per rejected finding + reason from the synthesizer.

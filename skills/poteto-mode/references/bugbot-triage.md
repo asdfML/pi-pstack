@@ -14,7 +14,7 @@ When in doubt, ask. Skipping a noisy code-quality comment is cheap; skipping a r
 
 ## Learned pattern format
 
-Add future patterns in this shape:
+Add future patterns in this shape, to the project lessons file `poteto-mode/references/bugbot-triage.md` (the **Lessons** section of the poteto-mode skill), never to this file:
 
 ```markdown
 ### <short pattern name>
@@ -85,7 +85,7 @@ Historical data showed humans sometimes dismiss security/data-flow comments. Tre
 
 ## Candidate learnings from recent babysits
 
-Append new candidate learnings here during or after babysitting when they look team-useful but not yet mature. Prefer promoting recurring candidates into the section above once several PRs confirm the pattern.
+Append new candidate learnings to the same project lessons file during or after babysitting when they look team-useful but not yet mature. Prefer promoting recurring candidates into the section above once several PRs confirm the pattern.
 
 ### Manual reimplementations of native browser behavior
 

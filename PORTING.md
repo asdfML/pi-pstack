@@ -42,3 +42,4 @@ Reference for humans syncing upstream. Agents never read this file.
 | Cursor built-in `create-skill` | the **Authoring or modifying a skill** playbook plus Pi's `docs/skills.md` |
 | `cursor-team-kit` `deslop`, `control-ui`, `control-cli` | ported into this package, visible to the model as upstream (copyright Cursor, `LICENSE-cursor-team-kit`, `NOTICE.md`) |
 | skills a skill generates for a project (`create-verification-skill`, `automate-me`) | `.agents/skills/<name>/` in the project |
+| edits to pstack's own skills (`reflect`, Bugbot learnings in Babysit, a broken skill mid-task) | lesson files that mirror the package path, in the project's `.agents/pstack-lessons/` or `pstack-lessons/` in the Pi agent directory (**Lessons** in poteto-mode); the package is never edited |

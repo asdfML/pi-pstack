@@ -84,12 +84,10 @@ armed a second timer while one was still running. The `schedule.create` fallback
 
 ## Open questions
 
-- **Generated and customized skills.** `create-verification-skill` and `automate-me` write new
-  skills into the project's `.agents/skills/`. Unclear yet: how a generated skill relates to the
-  package across `pi update` (it is not overwritten, but it does not get upstream fixes either),
-  how a user customizes a packaged skill without forking (today: copy it into `.agents/skills/`,
-  which collides by name with the packaged one), and whether pstack should support project
-  overrides the way pstack-claude's project playbooks do.
+- **Generated skills.** `create-verification-skill` and `automate-me` write new skills into the
+  project's `.agents/skills/`. `pi update` does not touch them, so they do not get upstream fixes
+  either. Amendments to pstack's own skills are solved by lesson files (**Lessons** in
+  poteto-mode). Unchecked: how well agents follow lessons that conflict with the package text.
 
 - **Package dependencies.** Pi packages cannot declare other Pi packages as dependencies;
   `dependencies` in `package.json` only covers npm modules imported by extensions. Required:

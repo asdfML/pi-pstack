@@ -30,7 +30,7 @@ Remaining triggers:
 - Any PR-status request ("babysit this", "get it green", "address the bugbot comments", and most often "check on PR X" or "anything outstanding on X") → the **Babysit** playbook (`playbooks/babysit.md`). Never triggered by merely opening a PR. Declare its mode before polling. The playbook's step 1 owns the request-to-mode mapping. Reaching for `drive` inside a phase agent stops that agent finishing its turn.
 - Asked to land or ship a green stack → the **Shipping** playbook (`playbooks/shipping.md`). Green is not safe. Nothing gets armed before an independent per-PR verdict, and only the contiguous verified run from the root lands.
 - Bugbot or the agentic security review commented → skeptical posture. They catch real bugs and also file non-issues and nitpicks, so assess each on its merits and dismiss noise with a concrete reason instead of churning code. Triage fix / dismiss / ask per `references/bugbot-triage.md`.
-- Broken skill mid-task → fix it in its own PR. Don't block. Don't silently work around it.
+- Broken skill mid-task → a pstack skill gets a lesson (**Lessons** below), a project skill gets a fix in its own PR. Don't block. Don't silently work around it.
 - Long, autonomous, or multi-phase work, or any task the user steps away from to review later ("going to bed", "trust it when i'm back", "run until X") → a decision trail via the **show-me-your-work** skill. Commit it when stakes need an auditable record. Keep it local otherwise.
 
 ## Principles
@@ -101,6 +101,17 @@ You own every subagent's work. Review the diff and write your own summary, don't
 ## Store
 
 Long runs keep their working files (decision trails, plans, orchestrate state) in the store, `.pi/pstack/` at the root of the main checkout, the parent directory of `git rev-parse --path-format=absolute --git-common-dir`. A run started outside any git repository, such as a workspace that holds several repositories, keeps its store in `.pi/pstack/` of that starting directory instead, one store for the whole run. Use that absolute path from a worktree too, so every agent shares one store. Inside a git repository, before the first write, add `.pi/pstack/` to `.git/info/exclude` if it is not there, so the store stays out of git without a change to the repo.
+
+## Lessons
+
+Lessons amend pstack's own files from outside the package, so `pi update` keeps them and the package stays as shipped. The package is the directory that holds this skill's directory. A lesson file mirrors the path of the file it amends, relative to that directory: a lesson for this skill's `playbooks/babysit.md` is `poteto-mode/playbooks/babysit.md`. Two layers:
+
+- User layer: `pstack-lessons/` in the Pi agent directory (`$PI_CODING_AGENT_DIR`, else `~/.pi/agent`). Lessons that hold in every project.
+- Project layer: `.agents/pstack-lessons/`. Search from the starting directory upward for an existing one, and stop below the home directory, so `~/.agents/pstack-lessons/` never counts. If none exists, it goes at the store's root (see **Store**). A run started in the home directory or outside it has no project layer. Follow symlinks.
+
+**Read.** After you read a pstack file, read the same path in the user layer, then in the project layer, when they exist. A lesson adds to the file. On a conflict the project layer wins over the user layer, and both win over the package.
+
+**Write.** Never edit a file in the package. A lesson that names anything specific to this project (its paths, tools, CI, team, review bots, or code) goes to the project layer. A lesson that would read the same in any project goes to the user layer. When unsure, use the project layer. Inside a git repository, before the first write to the project layer, add `.agents/pstack-lessons/` to `.git/info/exclude` if it is not there. Name each lesson file you wrote in your reply. Skills the project owns, such as `.agents/skills/` and verification skills, are edited in place, not through lessons.
 
 ## Writing the reply
 
