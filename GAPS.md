@@ -42,9 +42,9 @@ record which tools the user has, and make skills and playbooks use that.
   can find the package with `pi list`. A pi-subagents option to pass hidden skills an agent
   definition names explicitly would remove these workarounds.
 - **Nested subagent calls need permission.** With pi-permission-system set to ask, every
-  `subagent` call a child makes asks the user (or the authorizer chain) through the parent. In
-  `pi -p` there is no UI, so nested calls are rejected, and depth-3 chains (`poteto-agent` →
-  `comment-sicko` → `how` explorers) are untested. Verify interactively in phase 4.
+  `subagent` call a child makes goes to the main session's authorizer chain. Unattended runs need
+  an auto-review model or allow rules for `subagent`, `bash`, `bg_run`, and the goal tools.
+  Checked interactively, including depth-3 chains.
 - **`auto` role value dropped.** Cursor's `auto` model alias has no Pi equivalent. Roles take
   `provider/id[:level]` or `inherit-parent`.
 
@@ -78,8 +78,6 @@ armed a second timer while one was still running. The `schedule.create` fallback
 
 ## Planned (from reviewing michael-denyer/pstack-claude)
 
-- **Per-skill Pi note for phase 6:** `create-verification-skill` and `automate-me` write to
-  `.agents/skills/`.
 - **Alternative wake mechanism.** pstack-claude ships its own `/loop` and `schedule_wakeup`
   (in-session re-prompt, MIT, about 230 lines). Revisit if the idle continuation turns of
   pi-goal-x plus `bg_run` timers cost too much.
@@ -93,10 +91,8 @@ armed a second timer while one was still running. The `schedule.create` fallback
   which collides by name with the packaged one), and whether pstack should support project
   overrides the way pstack-claude's project playbooks do.
 
-- **Skill names.** `how`, `why`, `recall`, `correct`, `tdd` are generic and may collide with other
-  packages. Decide on a `pstack-` prefix before a public release.
 - **Package dependencies.** Pi packages cannot declare other Pi packages as dependencies;
   `dependencies` in `package.json` only covers npm modules imported by extensions. Required:
   pi-subagents, pi-goal-x. Optional: pi-background-tasks, a todo tool, a question tool, an MCP
   adapter for `why` sources. The README lists the `pi install` lines, and `/skill:setup-pstack`
-  checks which tools are present. Replace the local-clone line once the package is published.
+  checks which tools are present.

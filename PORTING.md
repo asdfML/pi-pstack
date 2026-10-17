@@ -10,6 +10,8 @@
   tools (tracker, chat, VCS host, review bots), during `/skill:setup-pstack`. The port does not
   hardcode a provider or a model. The first port keeps the external-tool text as upstream wrote
   it. Making it configurable is tracked in [GAPS.md](GAPS.md).
+- **Upstream skill names.** Skills keep their upstream names (`how`, `why`, `tdd`), with no
+  `pstack-` prefix, to stay canonical with pstack.
 - **Fix inline.** Each skill carries its own Pi wording. No shared glossary that agents must read
   to translate Cursor terms at runtime.
 

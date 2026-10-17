@@ -11,8 +11,6 @@ Licensed under MIT, like the original. See [LICENSE](LICENSE), [LICENSE-cursor-t
 are recorded in [UPSTREAM.md](UPSTREAM.md). How the port differs from upstream is in
 [PORTING.md](PORTING.md) and [GAPS.md](GAPS.md).
 
-Work in progress. Not ready for use yet.
-
 ## Install
 
 pi-pstack needs pi-subagents and pi-goal-x. pi-background-tasks is optional and gives long runs
@@ -22,8 +20,7 @@ their wake-up timers.
 pi install npm:pi-subagents
 pi install npm:pi-goal-x
 pi install npm:pi-background-tasks
-pi install ./pi-pstack
+pi install git:github.com/asdfML/pi-pstack
 ```
 
-The last line installs a local clone. The package is not published yet. Then run
-`/skill:setup-pstack` in Pi. The [guide](docs/guide/README.md) walks through the rest.
+Then run `/skill:setup-pstack` in Pi. The [guide](docs/guide/README.md) walks through the rest.
