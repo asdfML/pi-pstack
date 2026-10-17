@@ -118,4 +118,5 @@ test("from a linked worktree, the write target is the main checkout, excluded th
 	expect(out).toContain(`project write target: ${main}/.agents/pstack-lessons\n`);
 	write(join(main, ".agents/pstack-lessons/how/SKILL.md"), "main lesson");
 	expect(git(main, "status", "--porcelain")).toBe("");
+	expect(run(join(home, "wt-linked")).stdout).toContain("main lesson");
 });

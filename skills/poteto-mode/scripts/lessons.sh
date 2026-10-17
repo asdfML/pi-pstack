@@ -1,6 +1,7 @@
 #!/bin/sh
 # Print the pstack lesson layers and every lesson in them. Run from the starting directory.
-# Project layers are every .agents/pstack-lessons/ at or above it, below $HOME; the nearest one is
+# Project layers are every .agents/pstack-lessons/ at or above it (from a linked worktree, also at or
+# above its main checkout), below $HOME; the nearest one is
 # where new lessons go. With none, the write target is the store's root.
 # --create also creates the write target and keeps it out of git through .git/info/exclude.
 agent="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
@@ -15,21 +16,30 @@ allowed() {
   case "$home/" in "$1"/*) return 1 ;; esac
 }
 
-layers="" # nearest first, one per line
-d=$start
-while allowed "$d"; do
-  [ -d "$d/.agents/pstack-lessons" ] && layers="$layers$d/.agents/pstack-lessons
+# Every directory from $1 up that can hold a project layer, nearest first.
+chain() {
+  d=$1
+  while allowed "$d"; do
+    printf '%s\n' "$d"
+    d=$(dirname "$d")
+  done
+}
+
+common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
+root=$start
+[ -n "$common" ] && root=$(dirname "$common")
+
+# A linked worktree lives outside its main checkout, so it also reads the layers above the main
+# checkout, nearer than any ancestor the two share.
+main=$(chain "$root")
+layers=$({ chain "$start" | grep -vxF -e "$main"; printf '%s\n' "$main"; } | while IFS= read -r d; do
+  [ -n "$d" ] && [ -d "$d/.agents/pstack-lessons" ] && printf '%s\n' "$d/.agents/pstack-lessons"
+done) # nearest first, one per line
+[ -n "$layers" ] && layers="$layers
 "
-  d=$(dirname "$d")
-done
 
 target=$(printf '%s' "$layers" | head -n 1)
-if [ -z "$target" ]; then
-  common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
-  root=$start
-  [ -n "$common" ] && root=$(dirname "$common")
-  allowed "$root" && target="$root/.agents/pstack-lessons"
-fi
+[ -z "$target" ] && allowed "$root" && target="$root/.agents/pstack-lessons"
 
 if [ "$1" = "--create" ] && [ -n "$target" ]; then
   mkdir -p "$target" || exit 1
