@@ -100,7 +100,7 @@ You own every subagent's work. Review the diff and write your own summary, don't
 
 ## Store
 
-Long runs keep their working files (decision trails, plans, orchestrate state) in the store, `.pi/pstack/` at the root of the main checkout, the parent directory of `git rev-parse --path-format=absolute --git-common-dir`. Use that absolute path from a worktree too, so every agent shares one store. Before the first write, add `.pi/pstack/` to `.git/info/exclude` if it is not there, so the store stays out of git without a change to the repo.
+Long runs keep their working files (decision trails, plans, orchestrate state) in the store, `.pi/pstack/` at the root of the main checkout, the parent directory of `git rev-parse --path-format=absolute --git-common-dir`. A run started outside any git repository, such as a workspace that holds several repositories, keeps its store in `.pi/pstack/` of that starting directory instead, one store for the whole run. Use that absolute path from a worktree too, so every agent shares one store. Inside a git repository, before the first write, add `.pi/pstack/` to `.git/info/exclude` if it is not there, so the store stays out of git without a change to the repo.
 
 ## Writing the reply
 
