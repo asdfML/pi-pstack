@@ -87,18 +87,26 @@ turns. pi-goal-x's `strictExecutionContract` setting removes them: the agent dec
 wake supersedes the wait. The same scenario took 6 turns instead of about 25. Strict mode is a user
 setting, and it pauses the goal after any turn that ends without a `ready` or `wait` declaration.
 
-**pi-goal-x with pi-claude-bridge.** Two problems when the session model is a `claude-bridge` model:
+**pi-goal-x with pi-claude-bridge.** Two problems when the session model is a `claude-bridge` model
+(seen with pi-goal-x 0.32.3 and pi-claude-bridge 0.9.3):
 
-- The completion auditor can never approve. It runs in an in-process session without extensions,
-  so claude-bridge never captured its system prompt and fails the request
-  (`prompt_capture_unresolved` in `claude-bridge-diag.log`). pi-goal-x reads only text parts and
-  drops the provider error, so the rejection reads "Auditor produced no approval marker."
-  `auditorProjectResources: true` does not help. Workaround: an auditor model outside
-  claude-bridge (`"model": "openai-codex/gpt-6.1-sol"` in `pi-goal-x-settings.json`), which
-  approved and completed a goal in a live run.
-- `update_goal` reaches the model turns after `create_goal`, not on the next turn. Claude Code
-  appears to get the tool list only when the bridge starts a fresh query. In strict mode the goal
-  pauses before the agent can declare `wait`.
+- The completion auditor can never approve, and without an auditor model of its own it uses the
+  session model. claude-bridge forwards only system prompts it recorded in its own
+  `before_agent_start` hook and fails any other request (`resolveOrDerive` in
+  `src/prompt-capture.ts`; `prompt_capture_unresolved` in `claude-bridge-diag.log`). The auditor
+  runs in an in-process `createAgentSession` without extensions, so that hook never sees its prompt.
+  `runGoalCompletionAuditor` in `extensions/goal-auditor.ts` collects only text parts and drops the
+  provider's `errorMessage`, so the rejection reads "Auditor produced no approval marker."
+  `auditorProjectResources: true` does not help: the auditor session then loads its own
+  claude-bridge instance, whose hook records the prompt in that instance's store, while the
+  request still goes through the parent's provider and its store. Workaround: an auditor model
+  outside claude-bridge (`"model": "openai-codex/gpt-6.1-sol"` in `pi-goal-x-settings.json`),
+  which approved and completed a goal in a live run. Upstream fixes: pi-goal-x reports the
+  auditor's provider error; claude-bridge serves nested in-process sessions.
+- `update_goal` reaches the model turns after `create_goal`, not on the next turn, although
+  pi-goal-x adds it before each turn. Unconfirmed cause: Claude Code gets the tool list only when
+  the bridge starts a fresh query. In strict mode the goal pauses before the agent can declare
+  `wait`.
 
 ## Planned (from reviewing michael-denyer/pstack-claude)
 
