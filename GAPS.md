@@ -74,7 +74,9 @@ Checked in phase 4 with `pi --mode rpc` (a live session; `pi -p` exits after one
 can wake it): a pi-goal-x goal plus three 15-second `bg_run` timers wrote three ticks and completed
 the goal. Two costs remain. While a timer runs, pi-goal-x sends continuation prompts, so the agent
 spends two or three idle turns before the loop stops and the timer wakes it again. Once the agent
-armed a second timer while one was still running. The `schedule.create` fallback is unchecked.
+armed a second timer while one was still running; the playbooks now rearm only when the timer
+fires and check `bg_status` first, not yet rechecked in a live run. The `schedule.create`
+fallback is unchecked.
 
 ## Planned (from reviewing michael-denyer/pstack-claude)
 
