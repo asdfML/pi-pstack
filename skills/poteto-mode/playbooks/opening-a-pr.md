@@ -21,13 +21,11 @@ Invoked at the end of every other playbook.
 
 After the sections, attach videos or screenshots when they prove a claim. Full SHAs, swarm or arena lane recitals, lever-correction essays, file-by-file checklists, and "CLEAN" verdicts go in a linked artifact, not the body.
 
-**Forge.** Resolve the forge per `../references/integrations.md` before the first PR operation and keep that result for every later one. Run each PR operation (`create`, `retarget`, `ready`, `view`) from its section in the forge recipe the result names. Do not require Graphite (`gt`).
+**Forge.** Resolve the forge per `../references/integrations.md` before the first PR operation and keep that result for every later one. Run each PR operation (`create`, `retarget`, `ready`, `view`) from its section in the forge recipe the result names. A PR tool from an MCP server or an extension is used only when that recipe names it, so do not search for one. Do not require Graphite (`gt`).
 
-**Built-in PR tool.** When the run provides a built-in PR tool, create, edit, retarget, and mark ready through it, never through a forge CLI. A CLI-made PR misses what the tool tracks. Use the resolved forge for everything the tool does not cover, and for every PR operation when the run has no such tool.
+**Size and stacks.** Prefer five narrow PRs to one large PR. A stack is a base-branch chain. The root PR targets trunk. Each child branch rebases onto its parent's exact tip and its PR targets the parent branch. As a parent merges, move its child onto trunk per `playbooks/shipping.md` step 4. Create a child with the forge recipe's `create` and the parent branch as its base, and retarget one with the recipe's `retarget`. Branch from trunk only for independent work. Rebase on trunk before substantial stack work.
 
-**Size and stacks.** Prefer five narrow PRs to one large PR. A stack is a base-branch chain. The root PR targets trunk. Each child branch rebases onto its parent's exact tip and its PR targets the parent branch. As a parent merges, move its child onto trunk per `playbooks/shipping.md` step 4. Without a built-in PR tool, create a child with the forge recipe's `create` and the parent branch as its base, and retarget one with the recipe's `retarget`. Branch from trunk only for independent work. Rebase on trunk before substantial stack work.
-
-**Readiness.** Open every PR ready, never as a draft. A built-in PR tool can default to draft, so set `draft: false` on every creation call through it. The forge recipe's `create` opens the PR ready. If a PR still opens as a draft, mark it ready through the PR tool or the recipe's `ready`. Run the recipe's `view` before you refer to PR status.
+**Readiness.** Open every PR ready, never as a draft. The forge recipe's `create` opens the PR ready. If a PR still opens as a draft, mark it ready with the recipe's `ready`. Run the recipe's `view` before you refer to PR status.
 
 **Babysit.** Opening a PR does not start a babysit. Post the URL and keep building. Finish the phase or stack first. Run a separate babysit pass only when the user asks for one after the whole stack exists. A babysit for each new PR stalls the build and spends checks on commits later waves restart. Push back when feedback drifts from intent.
 
