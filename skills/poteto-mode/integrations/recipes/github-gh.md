@@ -111,11 +111,11 @@ Run the watcher by absolute path, `<poteto-mode dir>/scripts/watch-pr/watch-pr`.
 Verdicts and what each means for the loop:
 
 - `READY` is terminal in single and stack mode. The PR has no merge conflicts, no unresolved review threads, and no failing or pending checks.
-- `WAITING` is not terminal. With reason `pending-checks` the frontier waits on checks. With reason `merge-queue` in queued mode the frontier is blocker-free and waits for a merge. Queued mode never emits `READY`, so a watch run with `bg_run` does not wake you at `merge-ready`. When the playbook acts there, as when it stops at `merge-ready` or merges the frontier itself, add `--timeout <seconds>`, read the state with `--status-only` when it exits with `TIMEOUT`, and rearm.
+- `WAITING` is not terminal. With reason `pending-checks` the frontier waits on checks. With reason `merge-queue` in queued mode the frontier is blocker-free and waits for a merge. Queued mode never emits `READY`, so a watch run with `bg_run` does not wake you at `merge-ready`. When the playbook acts there, as when it stops at `merge-ready` or merges the frontier itself, add `--timeout <seconds>`. When it exits with `TIMEOUT`, its last `WAITING` line is the frontier's state. Act on `merge-ready`, else rearm.
 - `ADVANCE` is not terminal. Another actor merged the frontier, and the watcher continues with the new one.
 - `COMPLETE` is terminal in queued mode. Every PR in the queue merged.
 - `BLOCKER` is terminal and names the merge conflict, review threads, failing checks, or merge gate to work next. `TIMEOUT` is terminal when a `--timeout` deadline passes.
 
 ## merge-ready
 
-The watcher reports `READY` in single or stack mode, or `WAITING` with reason `merge-queue` in queued mode.
+The watcher reports `READY` in single or stack mode, or `WAITING` with reason `merge-queue` in queued mode, also as the last `WAITING` line before a `TIMEOUT`.
