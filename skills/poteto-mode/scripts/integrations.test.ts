@@ -241,6 +241,12 @@ const branchShapes: Record<string, (r: string) => void> = {
 		git(r, "add", "-f", ".pi");
 		rmSync(join(r, ".pi"), { recursive: true });
 	},
+	"a local .pi symlink to tracked files deleted from the disk": (r) => {
+		write(join(r, "config/pstack/integrations/bindings.md"), evil);
+		git(r, "add", "-f", "config");
+		symlinkSync("config", join(r, ".pi"));
+		rmSync(join(r, "config/pstack"), { recursive: true });
+	},
 };
 
 for (const [shape, make] of Object.entries(branchShapes)) {
@@ -253,7 +259,7 @@ for (const [shape, make] of Object.entries(branchShapes)) {
 		const created = run(r, ["--create"]);
 		expect(created.status).toBe(1);
 		expect(created.stdout).toContain(`project write target: none, because git tracks ${layer(r)}\n`);
-		if (shape.startsWith("tracked files deleted")) expect(existsSync(join(r, ".pi"))).toBe(false);
+		if (shape.includes("deleted")) expect(existsSync(layer(r))).toBe(false);
 	});
 }
 
@@ -288,12 +294,16 @@ test("layers another repository tracks stay the user's: a dotfiles symlink, a ne
 	expect(out.stdout).toContain(`project write target: ${layer(linked)}\n`);
 	expect(out.stderr).not.toContain("warning");
 	expect(run(linked, ["--create"]).status).toBe(0);
+	write(join(dotfiles, "proj/pstack/integrations/new.md"), "x");
+	expect(git(dotfiles, "status", "--porcelain")).toContain("proj/pstack/integrations/new.md");
 
 	const nested = repo(join(home, "nested-config"));
 	write(join(layer(nested), "bindings.md"), "## forge\nnone\n");
 	git(join(nested, ".pi/pstack"), "init", "-q");
 	git(join(nested, ".pi/pstack"), "add", "-A");
 	expect(block(run(nested).stdout, "forge")).toBe(`== forge: none\nfrom: ${layer(nested)}/bindings.md`);
+	expect(run(nested, ["--create"]).status).toBe(0);
+	expect(git(nested, "status", "--porcelain")).toBe("");
 
 	const parent = repo(join(home, "versioned-parent"));
 	write(join(layer(parent), "bindings.md"), "## forge\nnone\n");

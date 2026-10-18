@@ -40,9 +40,10 @@ layer_dirs() {
 
 # True when this project's git index supplies the layer $1, a <d>/.pi/pstack/<sub> path, so a branch
 # could ship it. The index of <d>'s checkout tracks .pi or .pi/pstack (a symlink or a submodule
-# there) or anything in the layer, in any letter case, even files gone from the disk. Or the layer's
-# real directory holds files the project tracks, as through a local symlink. Another repository,
-# such as a dotfiles repository the folder or a symlink's target lives in, never counts.
+# there) or anything in the layer, in any letter case, even files gone from the disk. Or the project
+# tracks files at the layer's real path, as through a local symlink, read from its nearest existing
+# directory so that files gone from the disk count there too. Another repository, such as a dotfiles
+# repository the folder or a symlink's target lives in, never counts.
 tracked() {
   [ -n "$common" ] || return 1
   d=${1%/.pi/pstack/*}
@@ -50,8 +51,10 @@ tracked() {
     git -C "$d" ls-files -z -- ':(icase).pi' 2>/dev/null | tr '\0' '\n' | awk -v l=".pi/pstack/${1##*/}" '
       { p = tolower($0) } p == ".pi" || p == ".pi/pstack" || p == l || index(p, l "/") == 1 { f = 1; exit }
       END { exit !f }' && return 0
-  [ -d "$1" ] && [ "$(git -C "$1" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" = "$common" ] &&
-    [ -n "$(git -C "$1" ls-files 2>/dev/null | head -n 1)" ]
+  p=$1 rest=
+  while [ -n "$p" ] && [ ! -d "$p" ]; do rest=${p##*/}${rest:+/$rest}; p=${p%/*}; done
+  [ "$(git -C "$p" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" = "$common" ] &&
+    [ -n "$(git -C "$p" ls-files -- ":(icase)${rest:-.}" 2>/dev/null | head -n 1)" ]
 }
 
 # Set target to the project write target for layer $1: the nearest layer in $2, the output of
@@ -85,12 +88,14 @@ create_target() {
   [ -z "$target" ] || make_layer "$target"
 }
 
-# Create the layer $1 and keep its .pi/pstack/ out of git through .git/info/exclude, once.
+# Create the layer $1, a <d>/.pi/pstack/<sub> path, and keep <d>/.pi/pstack/ out of the git of <d>'s
+# checkout through .git/info/exclude, once. A repository the folder itself lives in is left alone.
 make_layer() {
   mkdir -p "$1" || return 1
-  git_dir=$(git -C "$1" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
+  d=${1%/.pi/pstack/*}
+  git_dir=$(git -C "$d" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
   [ -n "$git_dir" ] || return 0
-  line="/$(git -C "$(dirname "$1")" rev-parse --show-prefix)"
+  line="/$(git -C "$d" rev-parse --show-prefix).pi/pstack/"
   mkdir -p "$git_dir/info" || return 1
   grep -qxF "$line" "$git_dir/info/exclude" 2>/dev/null ||
     echo "$line" >>"$git_dir/info/exclude"
