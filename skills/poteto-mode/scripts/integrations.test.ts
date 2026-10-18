@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -156,4 +156,24 @@ test("--create writes the target at the repository root even under a parent laye
 	expect(git(r, "status", "--porcelain")).toBe("");
 	const lines = readFileSync(join(r, ".git/info/exclude"), "utf8").split("\n");
 	expect(lines.filter((l: string) => l === "/.pi/pstack/")).toHaveLength(1);
+});
+
+const skills = realpathSync(join(import.meta.dir, "../.."));
+const notYetMigrated = [
+	"poteto-mode/playbooks/autopilot-full.md",
+	"poteto-mode/playbooks/autopilot-stack.md",
+	"poteto-mode/playbooks/babysit.md",
+	"poteto-mode/playbooks/multi-phase-plan.md",
+	"poteto-mode/playbooks/shipping.md",
+	"why/SKILL.md",
+];
+
+test("forge commands live only in recipes, and the not-yet-migrated list only shrinks", () => {
+	const forgeCommand = /\bgh (pr|api)\b|\borigin pr\b/;
+	const matching = (readdirSync(skills, { recursive: true }) as string[])
+		.filter((f) => f.endsWith(".md") && !f.startsWith("poteto-mode/integrations/recipes/") && !f.includes("node_modules"))
+		.filter((f) => forgeCommand.test(readFileSync(join(skills, f), "utf8")))
+		.sort();
+	expect(matching.filter((f) => !notYetMigrated.includes(f))).toEqual([]);
+	expect(notYetMigrated.filter((f) => !matching.includes(f))).toEqual([]);
 });
