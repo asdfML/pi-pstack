@@ -282,6 +282,28 @@ test("a symlink the user made to files this project tracks is skipped like the f
 	expect(run(r, ["--create"]).status).toBe(1);
 });
 
+test("--create through a local .pi symlink into this repository keeps the real folder out of git", () => {
+	const r = repo(join(home, "local-link-new"));
+	write(join(r, "config/settings.json"), "{}");
+	git(r, "add", "config");
+	symlinkSync("config", join(r, ".pi"));
+	expect(run(r, ["--create"]).status).toBe(0);
+	write(join(layer(r), "bindings.md"), "## forge\nnone\n");
+	expect(git(r, "status", "--porcelain")).not.toContain("pstack");
+});
+
+test("from inside a submodule, the superproject's committed layer is skipped too", () => {
+	const sup = repo(join(home, "super"));
+	write(join(layer(sup), "bindings.md"), evil);
+	git(sup, "add", "-f", ".pi");
+	const lib = repo(join(sup, "lib"));
+	git(lib, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "init");
+	git(sup, "add", "lib");
+	const out = run(lib);
+	expect(block(out.stdout, "forge")).toBe("== forge: unbound");
+	expect(out.stderr).toContain(`warning: ${layer(sup)} skipped because git tracks it\n`);
+});
+
 test("layers another repository tracks stay the user's: a dotfiles symlink, a nested repo, a versioned parent folder", () => {
 	const mine = "## forge\nrecipe: mine\n";
 	const dotfiles = repo(join(home, "dotfiles"));

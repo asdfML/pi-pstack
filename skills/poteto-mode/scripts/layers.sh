@@ -20,6 +20,8 @@ chain() {
 }
 
 common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
+super=$(git rev-parse --show-superproject-working-tree 2>/dev/null)
+[ -n "$super" ] && super=$(git -C "$super" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
 root=$start
 [ -n "$common" ] && root=$(dirname "$common")
 
@@ -42,19 +44,25 @@ layer_dirs() {
 # could ship it. The index of <d>'s checkout tracks .pi or .pi/pstack (a symlink or a submodule
 # there) or anything in the layer, in any letter case, even files gone from the disk. Or the project
 # tracks files at the layer's real path, as through a local symlink, read from its nearest existing
-# directory so that files gone from the disk count there too. Another repository, such as a dotfiles
-# repository the folder or a symlink's target lives in, never counts.
+# directory so that files gone from the disk count there too. The superproject of a submodule is
+# this project too. Another repository, such as a dotfiles repository the folder or a symlink's
+# target lives in, never counts.
 tracked() {
   [ -n "$common" ] || return 1
   d=${1%/.pi/pstack/*}
-  [ "$(git -C "$d" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" = "$common" ] &&
+  ours "$d" &&
     git -C "$d" ls-files -z -- ':(icase).pi' 2>/dev/null | tr '\0' '\n' | awk -v l=".pi/pstack/${1##*/}" '
       { p = tolower($0) } p == ".pi" || p == ".pi/pstack" || p == l || index(p, l "/") == 1 { f = 1; exit }
       END { exit !f }' && return 0
   p=$1 rest=
   while [ -n "$p" ] && [ ! -d "$p" ]; do rest=${p##*/}${rest:+/$rest}; p=${p%/*}; done
-  [ "$(git -C "$p" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" = "$common" ] &&
-    [ -n "$(git -C "$p" ls-files -- ":(icase)${rest:-.}" 2>/dev/null | head -n 1)" ]
+  ours "$p" && [ -n "$(git -C "$p" ls-files -- ":(icase)${rest:-.}" 2>/dev/null | head -n 1)" ]
+}
+
+# True when the directory $1 is in this project's repository or in its superproject's.
+ours() {
+  c=$(git -C "$1" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
+  [ -n "$c" ] && { [ "$c" = "$common" ] || [ "$c" = "$super" ]; }
 }
 
 # Set target to the project write target for layer $1: the nearest layer in $2, the output of
@@ -88,14 +96,19 @@ create_target() {
   [ -z "$target" ] || make_layer "$target"
 }
 
-# Create the layer $1, a <d>/.pi/pstack/<sub> path, and keep <d>/.pi/pstack/ out of the git of <d>'s
-# checkout through .git/info/exclude, once. A repository the folder itself lives in is left alone.
+# Create the layer $1, a <d>/.pi/pstack/<sub> path, and keep its .pi/pstack/ out of the git of <d>'s
+# checkout through .git/info/exclude, once: at its real path when that is in the same repository, as
+# through a local symlink. A repository the folder itself lives in is left alone.
 make_layer() {
   mkdir -p "$1" || return 1
   d=${1%/.pi/pstack/*}
   git_dir=$(git -C "$d" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
   [ -n "$git_dir" ] || return 0
-  line="/$(git -C "$d" rev-parse --show-prefix).pi/pstack/"
+  if [ "$(git -C "$1" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" = "$git_dir" ]; then
+    line="/$(git -C "$(dirname "$1")" rev-parse --show-prefix)"
+  else
+    line="/$(git -C "$d" rev-parse --show-prefix).pi/pstack/"
+  fi
   mkdir -p "$git_dir/info" || return 1
   grep -qxF "$line" "$git_dir/info/exclude" 2>/dev/null ||
     echo "$line" >>"$git_dir/info/exclude"
