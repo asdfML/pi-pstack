@@ -322,14 +322,28 @@ test("--create through a layer symlink into this repository keeps the layer's re
 test("--create fails when it cannot keep the layer out of git", () => {
 	const r = repo(join(home, "ro-exclude"));
 	chmodSync(join(r, ".git/info/exclude"), 0o444);
-	expect(run(r, ["--create"]).status).toBe(1);
+	const out = run(r, ["--create"]);
+	expect(out.status).toBe(1);
+	expect(out.stdout).toContain(`project write target: none, because ${layer(r)} could not be created and kept out of git\n`);
+});
+
+test("--create refuses a layer whose real folder is the work tree's root", () => {
+	const r = repo(join(home, "layer-root-link"));
+	mkdirSync(join(r, ".pi/pstack"), { recursive: true });
+	symlinkSync("../..", layer(r));
+	const out = run(r, ["--create"]);
+	expect(out.status).toBe(1);
+	expect(out.stdout).toContain("project write target: none, because");
+	expect(readFileSync(join(r, ".git/info/exclude"), "utf8").split("\n")).not.toContain("/");
 });
 
 test("--create keeps a real folder whose name holds pattern characters out of git", () => {
 	const r = repo(join(home, "glob-link"));
-	mkdirSync(join(r, "config[1]*?\\"));
-	symlinkSync("config[1]*?\\", join(r, ".pi"));
-	expect(run(r, ["--create"]).status).toBe(0);
+	mkdirSync(join(r, "config[1]*?\\n\\c\\"));
+	symlinkSync("config[1]*?\\n\\c\\", join(r, ".pi"));
+	const out = run(r, ["--create"]);
+	expect(out.status).toBe(0);
+	expect(out.stdout).toContain(`project write target: ${layer(r)}\n`);
 	write(join(layer(r), "bindings.md"), "## forge\nnone\n");
 	expect(git(r, "status", "--porcelain", "--untracked-files=all")).not.toContain("pstack");
 });

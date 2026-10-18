@@ -33,7 +33,7 @@ layer_dirs() {
   { chain "$start" | grep -vxF -e "$main"; printf '%s\n' "$main"; } | while IFS= read -r d; do
     [ -n "$d" ] && [ -d "$d/.pi/pstack/$1" ] || continue
     if tracked "$d/.pi/pstack/$1"; then
-      echo "warning: $d/.pi/pstack/$1 skipped because git tracks it" >&2
+      printf 'warning: %s skipped because git tracks it\n' "$d/.pi/pstack/$1" >&2
       continue
     fi
     printf '%s\n' "$d/.pi/pstack/$1"
@@ -73,40 +73,41 @@ ours() {
 
 # Set target to the project write target for layer $1: the nearest layer in $2, the output of
 # layer_dirs, else the main checkout's .pi/pstack/$1. When the project's index supplies that one,
-# target is empty and blocked names it. Outside any project both are empty.
+# target is empty and blocked says why. Outside any project both are empty.
 write_target() {
   target=$(printf '%s\n' "$2" | sed -n 1p) blocked=
   [ -z "$target" ] && allowed "$root" && target="$root/.pi/pstack/$1"
-  [ -n "$target" ] && tracked "$target" && { blocked=$target; target=; }
+  [ -n "$target" ] && tracked "$target" && { blocked="git tracks $target"; target=; }
   return 0
 }
 
 print_target() {
   if [ -n "$blocked" ]; then
-    echo "project write target: none, because git tracks $blocked"
+    printf 'project write target: none, because %s\n' "$blocked"
   elif [ -z "$target" ]; then
     echo "project write target: none"
   elif [ -d "$target" ]; then
-    echo "project write target: $target"
+    printf 'project write target: %s\n' "$target"
   else
-    echo "project write target: $target (not created yet)"
+    printf 'project write target: %s (not created yet)\n' "$target"
   fi
 }
 
-# For --create: create the write target, or fail when git tracks it.
+# For --create: create the write target, or fail when git tracks it or would still see it.
 create_target() {
   if [ -n "$blocked" ]; then
-    echo "warning: nothing created, because git tracks $blocked" >&2
+    printf 'warning: nothing created, because %s\n' "$blocked" >&2
     return 1
   fi
-  [ -z "$target" ] || make_layer "$target"
+  [ -z "$target" ] || make_layer "$target" || { blocked="$target could not be created and kept out of git"; target=; return 1; }
 }
 
 # Create the layer $1, a <top>/.pi/pstack/<sub> path, and keep it out of the git of <top>'s checkout
 # through .git/info/exclude, once. Its files can sit at two real paths, as through a local symlink at
-# .pi or at the layer: the real .pi/pstack folder and the layer's own real folder. Each one in that
-# checkout's work tree is excluded; with neither there, <top>'s .pi/pstack/ is. A repository the
-# folder itself lives in is left alone. Fails when an exclude line cannot be written.
+# .pi or at the layer: the real .pi/pstack folder and the layer's own real folder. The first is
+# excluded when it lies in that checkout's work tree, else <top>'s .pi/pstack/ is; the second too when
+# it lies there outside the first. A repository the folder itself lives in is left alone. Fails when
+# an exclude line cannot be written, or when the layer's real folder is the work tree's root.
 make_layer() {
   mkdir -p "$1" || return 1
   top=${1%/.pi/pstack/*}
@@ -114,6 +115,7 @@ make_layer() {
   mkdir -p "$git_dir/info" || return 1
   pstack=$(in_tree "$(dirname "$1")") || pstack="/$(git -C "$top" rev-parse --show-prefix).pi/pstack/"
   own=$(in_tree "$1") || own=
+  [ "$own" = / ] && return 1
   # A / line excludes nothing, so a real .pi/pstack at the work tree's root leaves the layer's line.
   if [ "$pstack" = / ]; then pstack=$own; own=; fi
   [ -z "$pstack" ] || exclude "$pstack" || return 1
@@ -124,7 +126,7 @@ make_layer() {
 # The real path of the directory $1, as a path from the work tree's root, when it is in a work tree
 # of $git_dir's repository.
 in_tree() {
-  [ "$(repo_of "$1")" = "$git_dir" ] && echo "/$(git -C "$1" rev-parse --show-prefix)"
+  [ "$(repo_of "$1")" = "$git_dir" ] && printf '/%s\n' "$(git -C "$1" rev-parse --show-prefix)"
 }
 
 # Add the path $1 to $git_dir's exclude file once, with git's pattern characters escaped.

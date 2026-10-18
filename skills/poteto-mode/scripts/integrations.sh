@@ -83,7 +83,7 @@ EOF
   if [ -z "$from" ]; then
     if [ "$1" = forge ] && github; then
       printf '\n== forge: package default\nrecipe: github-gh at %s\n' "$(recipe github-gh)"
-      echo "The remote is on github.com and no layer binds forge. If \`command -v origin\` succeeds and \`origin pr list --limit 1\` works in this repository, use the origin recipe at $(recipe origin) instead."
+      printf 'The remote is on github.com and no layer binds forge. If `command -v origin` succeeds and `origin pr list --limit 1` works in this repository, use the origin recipe at %s instead.\n' "$(recipe origin)"
     elif [ "$1" = ci ]; then
       printf '\n== ci: same as forge\n'
       echo "No layer binds ci, so the forge recipe's \`checks\`, \`logs\`, and \`rerun\` sections serve CI."
@@ -116,7 +116,7 @@ EOF
   return 0
 }
 
-echo "user layer: $user"
+printf 'user layer: %s\n' "$user"
 if [ -n "$project" ]; then
   echo "project layers, nearest first:"
   printf '%s\n' "$project" | sed 's/^/  /'

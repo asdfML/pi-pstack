@@ -12,7 +12,7 @@ write_target lessons "$layers"
 code=0
 [ "$1" = "--create" ] && { create_target || code=1; }
 
-echo "user layer: $user"
+printf 'user layer: %s\n' "$user"
 print_target
 echo "Lessons follow in rising priority: a later lesson wins over an earlier one for the same file."
 

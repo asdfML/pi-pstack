@@ -43,7 +43,7 @@ The watch's exit or the timer drives every wake. Never add a second sleep loop. 
 
 Only a top-level session writes, and only after the user confirms the tool. Ask the user where the binding belongs:
 
-- This project. Run `sh <poteto-mode dir>/scripts/integrations.sh --create` from the main checkout and write to the target it prints. When it prints `none` because git tracks the layer, write nothing and tell the user.
+- This project. Run `sh <poteto-mode dir>/scripts/integrations.sh --create` from the main checkout and write to the target it prints. When it prints `none`, write nothing and tell the user why.
 - A parent folder that several projects share. Run the same command from that folder.
 - The user layer, for a choice that holds in every project. The script prints its path. Create it if it does not exist.
 
