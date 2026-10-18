@@ -50,8 +50,21 @@ EOF
   return 1
 }
 
+# Whether origin is on GitHub. An SSH host can be an alias from the ssh config, so ask ssh where it
+# points; `ssh -G` only evaluates the config and never connects.
 github() {
-  git remote get-url origin 2>/dev/null | grep -Eq '^((https?|ssh)://([^/@]+@)?|[^/@]+@)github\.com[:/]'
+  url=$(git remote get-url origin 2>/dev/null) || return 1
+  case $url in
+    http://* | https://*) printf '%s\n' "$url" | grep -Eq '^https?://([^/@]+@)?github\.com[:/]'; return ;;
+    ssh://*) host=${url#ssh://}; host=${host%%/*}; host=${host##*@}; host=${host%:*} ;;
+    *://*) return 1 ;;
+    *:*) host=${url%%:*}; case $host in */*) return 1 ;; esac; host=${host##*@} ;;
+    *) return 1 ;;
+  esac
+  [ "$host" = github.com ] && return 0
+  case $host in "" | -*) return 1 ;; esac
+  ssh -G "$host" </dev/null 2>/dev/null |
+    awk '$1 == "hostname" { h = $2 } END { exit !(h == "github.com" || h == "ssh.github.com") }'
 }
 
 resolve() {

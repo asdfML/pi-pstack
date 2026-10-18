@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -30,9 +30,17 @@ function repo(dir: string, remote?: string) {
 	return dir;
 }
 
+// A stub `ssh -G <host>`: two aliases point at GitHub, every other host maps to itself.
+const bin = join(home, "bin");
+write(
+	join(bin, "ssh"),
+	'#!/bin/sh\ncase $2 in github-work) echo "hostname github.com" ;; gh443) echo "hostname ssh.github.com" ;; *) echo "hostname $2" ;; esac\n',
+);
+chmodSync(join(bin, "ssh"), 0o755);
+
 function run(cwd: string, args: string[] = []) {
 	mkdirSync(cwd, { recursive: true });
-	const env = { ...process.env, HOME: home, PI_CODING_AGENT_DIR: join(home, "agent") };
+	const env = { ...process.env, HOME: home, PI_CODING_AGENT_DIR: join(home, "agent"), PATH: `${bin}:${process.env.PATH}` };
 	return spawnSync("sh", [script, ...args], { cwd, env, encoding: "utf8" });
 }
 
@@ -67,8 +75,14 @@ test("the nearest layer wins per key, and other keys fall through to farther lay
 	expect(block(out, "ci")).toBe("== ci: unbound");
 });
 
-test("a github.com remote, https or ssh, gives the package default forge", () => {
-	for (const remote of ["https://github.com/o/r.git", "git@github.com:o/r.git", "ssh://git@github.com/o/r.git"]) {
+test("a github.com remote, https or ssh, or an ssh alias for GitHub gives the package default forge", () => {
+	for (const remote of [
+		"https://github.com/o/r.git",
+		"git@github.com:o/r.git",
+		"ssh://git@github.com/o/r.git",
+		"git@github-work:o/r.git",
+		"ssh://git@gh443:443/o/r.git",
+	]) {
 		const r = repo(join(home, "gh", remote.replace(/\W/g, "")), remote);
 		expect(block(run(r).stdout, "forge")).toBe(
 			`== forge: package default\nrecipe: github-gh at ${pkg}/github-gh.md\n` +
@@ -78,8 +92,14 @@ test("a github.com remote, https or ssh, gives the package default forge", () =>
 	}
 });
 
-test("a non-GitHub remote, a lookalike host, or no remote leaves forge unbound", () => {
-	for (const remote of ["git@bitbucket.org:o/r.git", "https://github.com.evil.example/o/r.git", undefined]) {
+test("a non-GitHub remote, a non-GitHub ssh alias, a lookalike host, or no remote leaves forge unbound", () => {
+	for (const remote of [
+		"git@bitbucket.org:o/r.git",
+		"git@bitbucket-work:o/r.git",
+		"https://github.com.evil.example/o/r.git",
+		"https://github-work/o/r.git",
+		undefined,
+	]) {
 		const r = repo(join(home, "nogh", (remote ?? "none").replace(/\W/g, "")), remote);
 		expect(block(run(r).stdout, "forge")).toBe("== forge: unbound");
 	}
