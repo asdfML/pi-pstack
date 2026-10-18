@@ -292,6 +292,20 @@ test("--create through a local .pi symlink into this repository keeps the real f
 	expect(git(r, "status", "--porcelain")).not.toContain("pstack");
 });
 
+test("worktree-audit.sh resolves the forge from the starting directory, so a nearer binding wins", () => {
+	const r = repo(join(home, "audit"));
+	git(r, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "init");
+	write(join(layer(r), "bindings.md"), "## forge\nrecipe: origin\n");
+	write(join(r, "sub/.pi/pstack/integrations/bindings.md"), "## forge\nnone\n");
+	const marker = join(home, "origin-ran");
+	write(join(bin, "origin"), `#!/bin/sh\ntouch ${marker}\n`);
+	chmodSync(join(bin, "origin"), 0o755);
+	const env = { ...process.env, HOME: home, PI_CODING_AGENT_DIR: join(home, "agent"), PATH: `${bin}:${process.env.PATH}` };
+	spawnSync("bash", [join(import.meta.dir, "worktree-audit.sh"), "-b", "HEAD"], { cwd: join(r, "sub"), env, encoding: "utf8" });
+	rmSync(join(bin, "origin"));
+	expect(existsSync(marker)).toBe(false);
+});
+
 test("--create through a layer symlink into this repository keeps the layer's real folder out of git", () => {
 	const r = repo(join(home, "layer-link"));
 	mkdirSync(join(r, "local-integrations"));
