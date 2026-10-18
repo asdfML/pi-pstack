@@ -48,17 +48,23 @@ esac
 git rev-parse --verify --quiet "$base^{commit}" >/dev/null 2>&1 || { echo "error: base ref not found: $base" >&2; exit 1; }
 
 # PR state by branch, fetched once as [{number, state, head}] with a lowercase
-# state. Origin when its CLI can read this repo's PRs, otherwise gh. Empty when
-# neither can.
+# state, through the CLI of the resolved forge recipe. Empty for any other
+# forge or when the CLI cannot read this repo's PRs.
 prs=$(mktemp)
-if command -v origin >/dev/null 2>&1 \
-	&& raw=$(origin pr list --author "@me" --state all --limit 1000 \
-		--json number,status,headRef 2>/dev/null); then
-	printf '%s' "$raw" | jq '[.[] | {number, state: .status, head: .headRef}]' > "$prs" 2>/dev/null
-elif raw=$(gh pr list --author "@me" --state all --limit 1000 \
-	--json number,state,headRefName 2>/dev/null); then
-	printf '%s' "$raw" | jq '[.[] | {number, state: (.state | ascii_downcase), head: .headRefName}]' > "$prs" 2>/dev/null
-fi
+forge=$(sh "$(dirname "$0")/integrations.sh" forge 2>/dev/null)
+forge_status=$(printf '%s\n' "$forge" | sed -n 's/^== forge: //p')
+forge_recipe=$(printf '%s\n' "$forge" | sed -n 's/^recipe: \(.*\) at .*/\1/p' | head -1)
+case "$forge_status:$forge_recipe" in
+"bound:origin")
+	raw=$(origin pr list --author "@me" --state all --limit 1000 \
+		--json number,status,headRef 2>/dev/null) \
+		&& printf '%s' "$raw" | jq '[.[] | {number, state: .status, head: .headRef}]' > "$prs" 2>/dev/null ;;
+"bound:github-gh"|"package default:github-gh")
+	raw=$(gh pr list --author "@me" --state all --limit 1000 \
+		--json number,state,headRefName 2>/dev/null) \
+		&& printf '%s' "$raw" | jq '[.[] | {number, state: (.state | ascii_downcase), head: .headRefName}]' > "$prs" 2>/dev/null ;;
+*) echo "warn: forge is ${forge_status:-unresolved}${forge_recipe:+ (recipe $forge_recipe)}; PR state is unavailable" >&2 ;;
+esac
 [ -s "$prs" ] || echo "[]" > "$prs"
 
 # Pi sessions for one checkout: $PI_CODING_AGENT_DIR/sessions/--<path without leading /, each / as ->--/.
