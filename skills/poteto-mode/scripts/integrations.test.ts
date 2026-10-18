@@ -194,9 +194,7 @@ const skills = realpathSync(join(import.meta.dir, "../.."));
 const notYetMigrated = [
 	"poteto-mode/playbooks/autopilot-full.md",
 	"poteto-mode/playbooks/autopilot-stack.md",
-	"poteto-mode/playbooks/babysit.md",
 	"poteto-mode/playbooks/multi-phase-plan.md",
-	"poteto-mode/playbooks/shipping.md",
 	"why/SKILL.md",
 ];
 

@@ -2,6 +2,8 @@
 
 Use this reference when the Babysit playbook (`../playbooks/babysit.md`) handles Bugbot or review-automation comments. The goal is not to ignore Bugbot by default. The goal is to stop treating every comment as a required code change.
 
+It covers the bots the project's `review-bots` binding names (`integrations.md`) and any other review automation.
+
 ## Decision rubric
 
 Classify each Bugbot thread before acting:

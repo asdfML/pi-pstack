@@ -99,7 +99,7 @@ Run the watcher by absolute path, `<poteto-mode dir>/scripts/watch-pr/watch-pr`.
 
 - Single PR: `watch-pr --pr <pr>`.
 - Connected stack: `watch-pr --stack`.
-- Queued stack: `watch-pr --queued-stack --stack-prs <bottom-to-top>`. Capture the PR list bottom-to-top once and pass the same frozen list to every rearm.
+- Queued stack, also the form that watches a stack land: `watch-pr --queued-stack --stack-prs <bottom-to-top>`. Capture the PR list bottom-to-top once and pass the same frozen list to every rearm.
 - One status pass that exits at once, as in Babysit's `check` mode: add `--status-only`.
 
 Verdicts and what each means for the loop:
