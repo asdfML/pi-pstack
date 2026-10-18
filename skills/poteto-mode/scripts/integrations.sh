@@ -60,7 +60,7 @@ github() {
   case $url in
     http://* | https://* | ssh://*)
       host=${url#*://}; host=${host%%/*}; host=${host##*@}; host=${host%:*}
-      case $url in ssh://*) ;; *) [ "$host" = github.com ]; return ;; esac ;;
+      case $url in ssh://*) ;; *) [ "$(printf '%s' "$host" | tr '[:upper:]' '[:lower:]')" = github.com ]; return ;; esac ;;
     *://*) return 1 ;;
     *:*) host=${url%%:*}; case $host in */*) return 1 ;; esac; host=${host##*@} ;;
     *) return 1 ;;

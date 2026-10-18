@@ -91,6 +91,7 @@ test("a github.com remote, https or ssh, or an ssh alias for GitHub gives the pa
 	for (const remote of [
 		"https://github.com/o/r.git",
 		"https://user:token@github.com:443/o/r.git",
+		"https://GitHub.com/o/r.git",
 		"git@github.com:o/r.git",
 		"ssh://git@github.com/o/r.git",
 		"git@github-work:o/r.git",
