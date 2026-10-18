@@ -5,37 +5,9 @@
 # write target is .pi/pstack/lessons/ in the main checkout, next to the store.
 # --create also creates the write target and keeps its .pi/pstack/ out of git through
 # .git/info/exclude.
-agent="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
-case "$agent" in "~") agent=$HOME ;; "~/"*) agent="$HOME/${agent#"~/"}" ;; esac
+. "$(dirname "$0")/layers.sh"
 user="$agent/pstack/lessons"
-start=$(pwd -P)
-home=$(cd "$HOME" && pwd -P)
-
-# True when $1 can hold a project layer: not /, not $HOME, not an ancestor of $HOME.
-allowed() {
-  [ "$1" != / ] && [ "$1" != "$home" ] || return 1
-  case "$home/" in "$1"/*) return 1 ;; esac
-}
-
-# Every directory from $1 up that can hold a project layer, nearest first.
-chain() {
-  d=$1
-  while allowed "$d"; do
-    printf '%s\n' "$d"
-    d=$(dirname "$d")
-  done
-}
-
-common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
-root=$start
-[ -n "$common" ] && root=$(dirname "$common")
-
-# A linked worktree lives outside its main checkout, so it also reads the layers above the main
-# checkout, nearer than any ancestor the two share.
-main=$(chain "$root")
-layers=$({ chain "$start" | grep -vxF -e "$main"; printf '%s\n' "$main"; } | while IFS= read -r d; do
-  [ -n "$d" ] && [ -d "$d/.pi/pstack/lessons" ] && printf '%s\n' "$d/.pi/pstack/lessons"
-done) # nearest first, one per line
+layers=$(layer_dirs lessons) # nearest first, one per line
 [ -n "$layers" ] && layers="$layers
 "
 
@@ -43,14 +15,7 @@ target=$(printf '%s' "$layers" | head -n 1)
 [ -z "$target" ] && allowed "$root" && target="$root/.pi/pstack/lessons"
 
 if [ "$1" = "--create" ] && [ -n "$target" ]; then
-  mkdir -p "$target" || exit 1
-  common=$(git -C "$target" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
-  if [ -n "$common" ]; then
-    line="/$(git -C "$(dirname "$target")" rev-parse --show-prefix)"
-    mkdir -p "$common/info" || exit 1
-    grep -qxF "$line" "$common/info/exclude" 2>/dev/null ||
-      echo "$line" >>"$common/info/exclude" || exit 1
-  fi
+  make_layer "$target" || exit 1
   [ -z "$layers" ] && layers="$target
 "
 fi
