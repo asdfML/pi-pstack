@@ -115,6 +115,10 @@ Lessons amend pstack's own files from outside the package, so `pi update` keeps 
 
 **Write.** Never edit a file in the package. Before writing to the project layer, run `scripts/lessons.sh --create`. It creates the write target if needed and, inside a git repository, adds its `.pi/pstack/` to `.git/info/exclude`, so the repository shows no change. Write to the write target it prints. A lesson that names anything specific to this project (its paths, tools, CI, team, review bots, or code) goes to the project layer. A lesson that would read the same in any project goes to the user layer. When unsure, use the project layer. Name each lesson file you wrote in your reply. Skills the project owns, such as `.agents/skills/` and verification skills, are edited in place, not through lessons.
 
+## Integrations
+
+The tool a project uses for each capability (its forge, CI, review bots, tracker, chat, and the other keys in `references/integrations.md`) is the user's choice, recorded per project. Before the first operation on a capability, resolve it per `references/integrations.md` and use only the tool it names. A tool being installed or connected is never a reason to use it.
+
 ## Writing the reply
 
 Write the reply clean as you draft it. A cleanup pass after drafting does not remove these patterns.
