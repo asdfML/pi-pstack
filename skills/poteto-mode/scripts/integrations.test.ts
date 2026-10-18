@@ -1,4 +1,4 @@
-import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -204,33 +204,115 @@ test("--create writes the target at the repository root even under a parent laye
 	expect(lines.filter((l: string) => l === "/.pi/pstack/")).toHaveLength(1);
 });
 
-test("a layer git tracks is skipped, as on a PR branch that commits one", () => {
-	const r = repo(join(home, "tracked"));
-	write(join(layer(r), "bindings.md"), "## forge\nrecipe: evil\n");
+const evil = "## forge\nrecipe: evil\n";
+
+// A repository whose own branch supplies .pi/pstack/integrations in one of the ways a checkout can.
+const branchShapes: Record<string, (r: string) => void> = {
+	"tracked files": (r) => {
+		write(join(layer(r), "bindings.md"), evil);
+		git(r, "add", "-f", ".pi");
+	},
+	"a tracked .pi symlink to an untracked folder": (r) => {
+		write(join(r, "payload/pstack/integrations/bindings.md"), evil);
+		symlinkSync("payload", join(r, ".pi"));
+		git(r, "add", "-f", ".pi");
+	},
+	"a tracked .pi symlink to a folder outside the repository": (r) => {
+		write(join(r + "-outside/pstack/integrations/bindings.md"), evil);
+		symlinkSync(r + "-outside", join(r, ".pi"));
+		git(r, "add", "-f", ".pi");
+	},
+	"a case variant of .pi": (r) => {
+		write(join(r, ".PI/pstack/integrations/bindings.md"), evil);
+		git(r, "add", "-f", ".PI");
+	},
+	"a submodule at .pi": (r) => {
+		write(join(layer(r), "bindings.md"), evil);
+		git(join(r, ".pi"), "init", "-q");
+		git(join(r, ".pi"), "add", "-A");
+		git(join(r, ".pi"), "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "x");
+		git(r, "add", ".pi");
+	},
+	"tracked files deleted from the disk": (r) => {
+		write(join(layer(r), "bindings.md"), evil);
+		git(r, "add", "-f", ".pi");
+		rmSync(join(r, ".pi"), { recursive: true });
+	},
+};
+
+for (const [shape, make] of Object.entries(branchShapes)) {
+	test(`a layer the project's git supplies through ${shape} is not read, written, or created`, () => {
+		const r = repo(join(home, "branch", shape.replace(/\W+/g, "-")));
+		make(r);
+		const out = run(r);
+		expect(block(out.stdout, "forge")).toBe("== forge: unbound");
+		expect(out.stdout).toContain(`project write target: none, because git tracks ${layer(r)}\n`);
+		const created = run(r, ["--create"]);
+		expect(created.status).toBe(1);
+		expect(created.stdout).toContain(`project write target: none, because git tracks ${layer(r)}\n`);
+		if (shape.startsWith("tracked files deleted")) expect(existsSync(join(r, ".pi"))).toBe(false);
+	});
+}
+
+test("a skipped layer warns, and the project's layer is read again once git stops tracking it", () => {
+	const r = repo(join(home, "untrack"));
+	branchShapes["tracked files"](r);
+	expect(run(r).stderr).toContain(`warning: ${layer(r)} skipped because git tracks it\n`);
+	git(r, "rm", "-rq", "--cached", ".pi");
 	write(join(layer(r), "recipes/evil.md"), "## merge\n");
 	expect(block(run(r).stdout, "forge")).toBe(`== forge: bound\nfrom: ${layer(r)}/bindings.md\nrecipe: evil at ${layer(r)}/recipes/evil.md`);
-	git(r, "add", "-f", ".pi");
-	const out = run(r);
-	expect(block(out.stdout, "forge")).toBe("== forge: unbound");
-	expect(out.stdout).toContain("project layers: none\n");
-	expect(out.stderr).toContain(`warning: ${r}/.pi/pstack/integrations skipped because git tracks files in it`);
-	expect(out.stdout).toContain(`project write target: none, because git tracks files in ${layer(r)}\n`);
+});
+
+test("a symlink the user made to files this project tracks is skipped like the files themselves", () => {
+	const r = repo(join(home, "local-link-tracked"));
+	write(join(r, "config/pstack/integrations/bindings.md"), evil);
+	git(r, "add", "-f", "config");
+	symlinkSync("config", join(r, ".pi"));
+	expect(block(run(r).stdout, "forge")).toBe("== forge: unbound");
 	expect(run(r, ["--create"]).status).toBe(1);
 });
 
-test("a tracked symlink or a case variant of .pi does not get a branch's layer past the check", () => {
-	const linked = repo(join(home, "tracked-link"));
-	write(join(linked, "payload/pstack/integrations/bindings.md"), "## forge\nrecipe: evil\n");
-	write(join(linked, "payload/pstack/integrations/recipes/evil.md"), "## merge\n");
-	symlinkSync("payload", join(linked, ".pi"));
-	git(linked, "add", "-f", ".pi", "payload");
-	expect(block(run(linked).stdout, "forge")).toBe("== forge: unbound");
+test("layers another repository tracks stay the user's: a dotfiles symlink, a nested repo, a versioned parent folder", () => {
+	const mine = "## forge\nrecipe: mine\n";
+	const dotfiles = repo(join(home, "dotfiles"));
+	write(join(dotfiles, "proj/pstack/integrations/bindings.md"), mine);
+	write(join(dotfiles, "proj/pstack/integrations/recipes/mine.md"), "## view\n");
+	git(dotfiles, "add", "-A");
+	const linked = repo(join(home, "uses-dotfiles"));
+	symlinkSync(join(dotfiles, "proj"), join(linked, ".pi"));
+	const out = run(linked);
+	expect(block(out.stdout, "forge")).toContain("== forge: bound\n");
+	expect(out.stdout).toContain(`project write target: ${layer(linked)}\n`);
+	expect(out.stderr).not.toContain("warning");
+	expect(run(linked, ["--create"]).status).toBe(0);
 
-	const cased = repo(join(home, "tracked-case"));
-	write(join(cased, ".PI/pstack/integrations/bindings.md"), "## forge\nrecipe: evil\n");
-	write(join(cased, ".PI/pstack/integrations/recipes/evil.md"), "## merge\n");
-	git(cased, "add", "-f", ".PI");
-	expect(block(run(cased).stdout, "forge")).toBe("== forge: unbound");
+	const nested = repo(join(home, "nested-config"));
+	write(join(layer(nested), "bindings.md"), "## forge\nnone\n");
+	git(join(nested, ".pi/pstack"), "init", "-q");
+	git(join(nested, ".pi/pstack"), "add", "-A");
+	expect(block(run(nested).stdout, "forge")).toBe(`== forge: none\nfrom: ${layer(nested)}/bindings.md`);
+
+	const parent = repo(join(home, "versioned-parent"));
+	write(join(layer(parent), "bindings.md"), "## forge\nnone\n");
+	git(parent, "add", "-f", ".pi");
+	const child = repo(join(parent, "child"));
+	expect(block(run(child).stdout, "forge")).toBe(`== forge: none\nfrom: ${layer(parent)}/bindings.md`);
+});
+
+test("from a linked worktree, a PR branch's committed layer is skipped and the main checkout's still wins", () => {
+	const main = repo(join(home, "pr-main"));
+	git(main, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "init");
+	git(main, "checkout", "-q", "-b", "pr");
+	write(join(layer(main), "bindings.md"), evil);
+	git(main, "add", "-f", ".pi");
+	git(main, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "plant");
+	git(main, "checkout", "-q", "-");
+	write(join(layer(main), "bindings.md"), "## forge\nnone\n");
+	const pr = join(home, "pr-head");
+	git(main, "worktree", "add", "-q", pr, "pr");
+	const out = run(pr);
+	expect(block(out.stdout, "forge")).toBe(`== forge: none\nfrom: ${layer(main)}/bindings.md`);
+	expect(out.stderr).toContain(`warning: ${layer(pr)} skipped because git tracks it\n`);
 });
 
 const skills = realpathSync(join(import.meta.dir, "../.."));

@@ -31,17 +31,58 @@ layer_dirs() {
   { chain "$start" | grep -vxF -e "$main"; printf '%s\n' "$main"; } | while IFS= read -r d; do
     [ -n "$d" ] && [ -d "$d/.pi/pstack/$1" ] || continue
     if tracked "$d/.pi/pstack/$1"; then
-      echo "warning: $d/.pi/pstack/$1 skipped because git tracks files in it" >&2
+      echo "warning: $d/.pi/pstack/$1 skipped because git tracks it" >&2
       continue
     fi
     printf '%s\n' "$d/.pi/pstack/$1"
   done
 }
 
-# True when git tracks a file in directory $1. Git runs from inside it, so a tracked symlink on the
-# way, a case variant of the path, or a submodule there is caught too.
+# True when this project's git index supplies the layer $1, a <d>/.pi/pstack/<sub> path, so a branch
+# could ship it. The index of <d>'s checkout tracks .pi or .pi/pstack (a symlink or a submodule
+# there) or anything in the layer, in any letter case, even files gone from the disk. Or the layer's
+# real directory holds files the project tracks, as through a local symlink. Another repository,
+# such as a dotfiles repository the folder or a symlink's target lives in, never counts.
 tracked() {
-  [ -n "$(git -C "$1" ls-files 2>/dev/null | head -n 1)" ]
+  [ -n "$common" ] || return 1
+  d=${1%/.pi/pstack/*}
+  [ "$(git -C "$d" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" = "$common" ] &&
+    git -C "$d" ls-files -z -- ':(icase).pi' 2>/dev/null | tr '\0' '\n' | awk -v l=".pi/pstack/${1##*/}" '
+      { p = tolower($0) } p == ".pi" || p == ".pi/pstack" || p == l || index(p, l "/") == 1 { f = 1; exit }
+      END { exit !f }' && return 0
+  [ -d "$1" ] && [ "$(git -C "$1" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" = "$common" ] &&
+    [ -n "$(git -C "$1" ls-files 2>/dev/null | head -n 1)" ]
+}
+
+# Set target to the project write target for layer $1: the nearest layer in $2, the output of
+# layer_dirs, else the main checkout's .pi/pstack/$1. When the project's index supplies that one,
+# target is empty and blocked names it. Outside any project both are empty.
+write_target() {
+  target=$(printf '%s\n' "$2" | sed -n 1p) blocked=
+  [ -z "$target" ] && allowed "$root" && target="$root/.pi/pstack/$1"
+  [ -n "$target" ] && tracked "$target" && { blocked=$target; target=; }
+  return 0
+}
+
+print_target() {
+  if [ -n "$blocked" ]; then
+    echo "project write target: none, because git tracks $blocked"
+  elif [ -z "$target" ]; then
+    echo "project write target: none"
+  elif [ -d "$target" ]; then
+    echo "project write target: $target"
+  else
+    echo "project write target: $target (not created yet)"
+  fi
+}
+
+# For --create: create the write target, or fail when git tracks it.
+create_target() {
+  if [ -n "$blocked" ]; then
+    echo "warning: nothing created, because git tracks $blocked" >&2
+    return 1
+  fi
+  [ -z "$target" ] || make_layer "$target"
 }
 
 # Create the layer $1 and keep its .pi/pstack/ out of git through .git/info/exclude, once.

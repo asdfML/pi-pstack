@@ -25,13 +25,9 @@ for a; do
 done
 [ -z "$want" ] && want=$keys
 
-target= blocked=
-allowed "$root" && target="$root/.pi/pstack/integrations"
-[ -n "$target" ] && tracked "$target" && { blocked=$target; target=; }
-if [ -n "$create" ] && [ -n "$blocked" ]; then
-  echo "integrations.sh: git tracks files in $blocked, so it cannot hold bindings" >&2; exit 1
-fi
-if [ -n "$create" ] && [ -n "$target" ]; then make_layer "$target" || exit 1; fi
+write_target integrations
+code=0
+[ -n "$create" ] && { create_target || code=1; }
 
 project=$(layer_dirs integrations)
 dirs=$(printf '%s\n%s\n' "$project" "$user" | sed '/^$/d') # bindings layers, nearest first
@@ -124,15 +120,7 @@ if [ -n "$project" ]; then
 else
   echo "project layers: none"
 fi
-if [ -n "$blocked" ]; then
-  echo "project write target: none, because git tracks files in $blocked"
-elif [ -z "$target" ]; then
-  echo "project write target: none"
-elif [ -d "$target" ]; then
-  echo "project write target: $target"
-else
-  echo "project write target: $target (not created yet)"
-fi
+print_target
 echo "Each key shows the section from the nearest layer that has one. Use only the recipe named here."
 
 for k in $keys; do
@@ -148,4 +136,4 @@ $dirs
 EOF
 )
 [ -n "$warnings" ] && printf '\n%s\n' "$warnings"
-exit 0
+exit $code

@@ -8,33 +8,12 @@
 . "$(dirname "$0")/layers.sh"
 user="$agent/pstack/lessons"
 layers=$(layer_dirs lessons) # nearest first, one per line
-[ -n "$layers" ] && layers="$layers
-"
-
-target=$(printf '%s' "$layers" | head -n 1)
-[ -z "$target" ] && allowed "$root" && target="$root/.pi/pstack/lessons"
-blocked=
-allowed "$root" && tracked "$root/.pi/pstack/lessons" && { blocked="$root/.pi/pstack/lessons"; target=; }
-
-if [ "$1" = "--create" ] && [ -n "$blocked" ]; then
-  echo "lessons.sh: git tracks files in $blocked, so it cannot hold lessons" >&2; exit 1
-fi
-if [ "$1" = "--create" ] && [ -n "$target" ]; then
-  make_layer "$target" || exit 1
-  [ -z "$layers" ] && layers="$target
-"
-fi
+write_target lessons "$layers"
+code=0
+[ "$1" = "--create" ] && { create_target || code=1; }
 
 echo "user layer: $user"
-if [ -n "$blocked" ]; then
-  echo "project write target: none, because git tracks files in $blocked"
-elif [ -z "$target" ]; then
-  echo "project write target: none"
-elif [ -d "$target" ]; then
-  echo "project write target: $target"
-else
-  echo "project write target: $target (not created yet)"
-fi
+print_target
 echo "Lessons follow in rising priority: a later lesson wins over an earlier one for the same file."
 
 show() {
@@ -45,4 +24,5 @@ show() {
   done
 }
 show "$user"
-printf '%s' "$layers" | sed '1!G;h;$!d' | while IFS= read -r dir; do show "$dir"; done
+printf '%s\n' "$layers" | sed '/^$/d; 1!G;h;$!d' | while IFS= read -r dir; do show "$dir"; done
+exit $code

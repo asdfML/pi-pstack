@@ -122,7 +122,7 @@ test("from a linked worktree, the write target is the main checkout, excluded th
 	expect(run(join(home, "wt-linked")).stdout).toContain("main lesson");
 });
 
-test("a layer git tracks is never read, written, or created, even with a layer above it", () => {
+test("a layer git tracks is never read, and the nearest layer left is the write target", () => {
 	write(join(home, "work/.pi/pstack/lessons/x/a.md"), "parent lesson");
 	const r = join(home, "work/tracked");
 	write(join(r, ".pi/pstack/lessons/x/a.md"), "branch lesson");
@@ -131,8 +131,33 @@ test("a layer git tracks is never read, written, or created, even with a layer a
 	for (const args of [[], ["--create"]]) {
 		const out = run(r, args);
 		expect(out.stdout).not.toContain("branch lesson");
-		expect(out.stderr).toContain(`warning: ${r}/.pi/pstack/lessons skipped because git tracks files in it`);
+		expect(out.stderr).toContain(`warning: ${r}/.pi/pstack/lessons skipped because git tracks it`);
+		expect(out.stdout).toContain("parent lesson");
+		expect(out.stdout).toContain(`project write target: ${home}/work/.pi/pstack/lessons\n`);
 	}
-	expect(run(r).stdout).toContain(`project write target: none, because git tracks files in ${r}/.pi/pstack/lessons\n`);
-	expect(run(r, ["--create"]).status).toBe(1);
+	expect(run(r, ["--create"]).status).toBe(0);
+});
+
+test("with only a tracked layer in the repository, there is no write target and --create fails", () => {
+	const r = join(home, "tracked-alone");
+	write(join(r, ".pi/pstack/lessons/x/a.md"), "branch lesson");
+	git(r, "init", "-q");
+	git(r, "add", "-f", ".pi");
+	const out = run(r, ["--create"]);
+	expect(out.status).toBe(1);
+	expect(out.stdout).not.toContain("branch lesson");
+	expect(out.stdout).toContain(`project write target: none, because git tracks ${r}/.pi/pstack/lessons\n`);
+});
+
+test("an untracked layer nearer than a tracked root is read and is the write target", () => {
+	const r = join(home, "tracked-root");
+	write(join(r, ".pi/pstack/lessons/x/a.md"), "branch lesson");
+	write(join(r, "pkg/.pi/pstack/lessons/x/a.md"), "package lesson");
+	git(r, "init", "-q");
+	git(r, "add", "-f", ".pi");
+	const out = run(join(r, "pkg"), ["--create"]);
+	expect(out.status).toBe(0);
+	expect(out.stdout).toContain("package lesson");
+	expect(out.stdout).not.toContain("branch lesson");
+	expect(out.stdout).toContain(`project write target: ${r}/pkg/.pi/pstack/lessons\n`);
 });
