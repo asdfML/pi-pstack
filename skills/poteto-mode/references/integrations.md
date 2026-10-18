@@ -35,7 +35,7 @@ A playbook that waits for a terminal state picks one form by what the recipe's `
 - A watch only the agent can do, such as an MCP call. An async subagent polls it until a terminal state, and its completion wakes the session.
 - No `watch` section. A `bg_run` timer wakes the session, and each wake runs one `view`, one `checks`, and one `threads`. Without `bg_run`, use the timer fallback in step 2 of `<poteto-mode dir>/playbooks/autonomous-run.md`.
 
-When `ci` is bound apart from the forge, that CI gates only the forge's `merge-ready`. Handle every other forge state as the playbook says, with no wait on the CI. When the forge reaches `merge-ready`, read the `ci` recipe's `checks`. A failure there is a failing check. While runs are in progress, stop the forge's wait, wait on the CI by its `watch` or by the timer form with only its `checks`, then read the forge state again. One wait runs at a time.
+When `ci` is bound apart from the forge, wait on that CI only at the forge's `merge-ready`. Handle every other forge state as the playbook says, with no wait on the CI. When the forge reaches `merge-ready`, read the `ci` recipe's `checks` for the current head. A failure there is a failing check. While its runs for that head are in progress or none shows yet, stop the forge's wait, wait on the CI by its `watch` or by the timer form with only its `checks`, then read the forge state again. One wait runs at a time.
 
 The watch's exit or the timer drives every wake. Never add a second sleep loop. Rearm after every push wave and every verdict you act on.
 
