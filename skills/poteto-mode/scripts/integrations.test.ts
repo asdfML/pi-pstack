@@ -135,6 +135,20 @@ test("a recipe is found in the project before the user layer before the package"
 	expect(block(out, "ci")).toContain(`recipe: user-only at ${user}/recipes/user-only.md`);
 });
 
+test("why's source playbooks resolve by name after the package, and a layer's recipe of that name wins", () => {
+	const why = realpathSync(join(import.meta.dir, "../../why/references/sources"));
+	const r = repo(join(home, "why-sources"));
+	write(join(layer(r), "bindings.md"), "## chat\nrecipe: slack\nWorkspace acme.\n\n## tracker\nrecipe: linear\n\n## docs\nrecipe: notion\n");
+	write(join(layer(r), "recipes/linear.md"), "## search\n");
+	write(join(user, "recipes/notion.md"), "## search\n");
+	const out = run(r).stdout;
+	expect(block(out, "chat")).toBe(
+		`== chat: bound\nfrom: ${layer(r)}/bindings.md\nrecipe: slack at ${why}/slack.md\nWorkspace acme.`,
+	);
+	expect(block(out, "tracker")).toContain(`recipe: linear at ${layer(r)}/recipes/linear.md`);
+	expect(block(out, "docs")).toContain(`recipe: notion at ${user}/recipes/notion.md`);
+});
+
 test("a missing recipe, a bad first line, and a path-like name are reported, not resolved", () => {
 	const r = repo(join(home, "broken"));
 	write(join(layer(r), "bindings.md"), "## forge\nrecipe: nowhere\n\n## ci\nJenkins at ci.example\n\n## docs\nrecipe: ../x\n");

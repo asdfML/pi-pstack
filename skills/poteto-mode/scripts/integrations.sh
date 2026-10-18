@@ -9,6 +9,7 @@
 . "$(dirname "$0")/layers.sh"
 keys="forge ci review-bots tracker chat docs observability errors analytics"
 pkg=$(cd "$(dirname "$0")/../integrations" && pwd -P)
+why=$(cd "$(dirname "$0")/../../why/references/sources" && pwd -P)
 user="$agent/pstack/integrations"
 
 create=
@@ -39,7 +40,8 @@ section() {
     END { exit !found }' "$1"
 }
 
-# The path of recipe $1: project layers nearest first, then the user layer, then the package.
+# The path of recipe $1: project layers nearest first, then the user layer, then the package, then
+# the why skill's source playbooks, so an evidence key can bind one by name.
 recipe() {
   while IFS= read -r d; do
     [ -f "$d/recipes/$1.md" ] && { printf '%s\n' "$d/recipes/$1.md"; return 0; }
@@ -47,6 +49,7 @@ recipe() {
 $dirs
 $pkg
 EOF
+  [ -f "$why/$1.md" ] && { printf '%s\n' "$why/$1.md"; return 0; }
   return 1
 }
 
