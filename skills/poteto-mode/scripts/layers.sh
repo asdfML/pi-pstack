@@ -129,8 +129,12 @@ in_tree() {
   [ "$(repo_of "$1")" = "$git_dir" ] && printf '/%s\n' "$(git -C "$1" rev-parse --show-prefix)"
 }
 
-# Add the path $1 to $git_dir's exclude file once, with git's pattern characters escaped.
+# Add the path $1 to $git_dir's exclude file once, with git's pattern characters escaped. A last line
+# the user left without a newline is closed first, so the two do not run together.
 exclude() {
+  f=$git_dir/info/exclude
   line=$(printf '%s\n' "$1" | sed 's/[][*?\\]/\\&/g')
-  grep -qxF "$line" "$git_dir/info/exclude" 2>/dev/null || printf '%s\n' "$line" >>"$git_dir/info/exclude"
+  grep -qxF "$line" "$f" 2>/dev/null && return 0
+  if [ -s "$f" ] && [ -n "$(tail -c 1 "$f")" ]; then printf '\n' >>"$f" || return 1; fi
+  printf '%s\n' "$line" >>"$f"
 }

@@ -21,7 +21,7 @@ for a; do
     --create) create=1 ;;
     *) case " $keys " in
          *" $a "*) want="$want $a" ;;
-         *) echo "integrations.sh: unknown key \"$a\"; valid keys: $keys" >&2; exit 2 ;;
+         *) printf 'integrations.sh: unknown key "%s"; valid keys: %s\n' "$a" "$keys" >&2; exit 2 ;;
        esac ;;
   esac
 done
@@ -61,7 +61,7 @@ github() {
   url=$(git remote get-url origin 2>/dev/null) || return 1
   case $url in
     http://* | https://* | ssh://*)
-      host=${url#*://}; host=${host%%/*}; host=${host##*@}; host=${host%:*}
+      host=${url#*://}; host=${host%%[/?#]*}; host=${host##*@}; host=${host%:*}
       case $url in ssh://*) ;; *) [ "$(printf '%s' "$host" | tr '[:upper:]' '[:lower:]')" = github.com ]; return ;; esac ;;
     *://*) return 1 ;;
     *:*) host=${url%%:*}; case $host in */*) return 1 ;; esac; host=${host##*@} ;;
@@ -131,9 +131,9 @@ for k in $keys; do
 done
 
 warnings=$(while IFS= read -r d; do
-  [ -f "$d/bindings.md" ] && awk -v keys=" $keys " -v f="$d/bindings.md" '
+  [ -f "$d/bindings.md" ] && awk -v keys=" $keys " '
     /^## / { h = substr($0, 4); sub(/[ \t\r]+$/, "", h)
-      if (h == "" || h ~ /[ \t]/ || !index(keys, " " h " ")) printf "warning: %s: unknown heading \"%s\" ignored\n", f, $0 }' "$d/bindings.md"
+      if (h == "" || h ~ /[ \t]/ || !index(keys, " " h " ")) printf "warning: %s: unknown heading \"%s\" ignored\n", FILENAME, $0 }' "$d/bindings.md"
 done <<EOF
 $dirs
 EOF

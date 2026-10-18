@@ -114,6 +114,9 @@ test("a non-GitHub remote, a non-GitHub ssh alias, a lookalike host, or no remot
 		"https://github-work/o/r.git",
 		"https://github.com:token@bitbucket.example/o/r.git",
 		"ssh://github.com@bitbucket.example/o/r.git",
+		"https://evil.example?@github.com/o/r",
+		"https://evil.example#@github.com/o/r",
+		"ssh://git@evil.example?@github.com/o/r",
 		undefined,
 	]) {
 		const r = repo(join(home, "nogh", (remote ?? "none").replace(/\W/g, "")), remote);
@@ -174,6 +177,18 @@ test("an unknown heading warns with its file and is ignored", () => {
 	expect(out).toContain(`warning: ${layer(r)}/bindings.md: unknown heading "## jira" ignored`);
 	expect(out).not.toContain("== jira");
 	expect(block(out, "ci")).toStartWith("== ci: none");
+	const odd = repo(join(home, "unknown\\n\\c"));
+	write(join(layer(odd), "bindings.md"), "## jira\n");
+	expect(run(odd).stdout).toContain(`warning: ${layer(odd)}/bindings.md: unknown heading "## jira" ignored`);
+});
+
+test("--create keeps the user's last exclude line when the file has no final newline", () => {
+	const r = repo(join(home, "no-newline"));
+	writeFileSync(join(r, ".git/info/exclude"), "*.log");
+	expect(run(r, ["--create"]).status).toBe(0);
+	write(join(layer(r), "bindings.md"), "## forge\nnone\n");
+	write(join(r, "a.log"), "");
+	expect(git(r, "status", "--porcelain", "--untracked-files=all")).toBe("");
 });
 
 test("key arguments filter the keys, and an unknown key exits 2 naming the valid keys", () => {
