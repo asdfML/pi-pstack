@@ -34,7 +34,10 @@ What remains:
 
 - `watch-pr` works only on github.com, and its pass count covers only Bugbot threads. On another
   forge, Babysit and Shipping wait through the recipe's `watch` or a timer, and the pass count
-  comes from the `review-bots` binding.
+  comes from the `review-bots` recipe.
+- Bindings stay out of git through `.git/info/exclude`, and git treats excluded files as
+  disposable. Checking out a branch that commits `.pi/pstack/` replaces the local files, and
+  switching back deletes them. The scripts skip such a layer, but the local copy is already gone.
 - `orch` computes the frontier only for `gh` and Origin (`Forge` in
   `skills/poteto-mode/scripts/orch/store.ts`). With any other forge, the Orchestrate coordinator
   keeps `frontier.json` by hand from the recipe's `view`.

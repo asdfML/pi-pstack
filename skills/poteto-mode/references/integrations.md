@@ -6,7 +6,7 @@ An integration is the tool a project uses for one capability, such as its forge 
 
 - `forge` hosts branches and pull requests.
 - `ci` runs checks on a branch or a pull request. With no binding in any layer, the script prints `same as forge`, and the forge recipe's `checks`, `logs`, and `rerun` sections serve CI.
-- `review-bots` are the automated reviewers that comment on a pull request. The recipe names each bot's author identity, how to tell that a pass ended, and how to count passes. When it is unbound or `none`, no bot is awaited beyond what the forge's `watch` waits for, and every review comment is still triaged on its merits. An unbound `review-bots` is never asked about, because the GitHub watcher already counts Bugbot passes.
+- `review-bots` are the automated reviewers that comment on a pull request. The recipe names each bot's author identity, how to tell that a pass ended, and how to count passes. When it is unbound or `none`, no bot is awaited beyond what the forge's `watch` waits for, and every review comment is still triaged on its merits. An unbound `review-bots` is never asked about.
 - `tracker` holds tickets and issues.
 - `chat` is the team's messaging.
 - `docs` holds the team's written documentation.
@@ -22,7 +22,7 @@ Each key prints its status, the bindings file it came from, the recipe path, and
 
 ## Act on the status
 
-- `bound` or `package default`. Open the recipe at the printed path and run each operation from its `## <operation>` section, with the binding's notes. When the recipe has no section for an operation, do it with the same tool, from its `--help` or `mcp({ describe })`. Reaching for another tool is out. For `package default`, also follow the printed line about Origin.
+- `bound` or `package default`. Open the recipe at the printed path and run each operation from its `## <operation>` section, with the binding's notes. When the recipe has no section for an operation, do it with the same tool, from its `--help` or `mcp({ describe })`. If that tool cannot do it, say so and leave the operation undone. Reaching for another tool is out. For `package default`, also follow the printed line about Origin.
 - `none`. The project does not use this capability. Skip the steps that need it and say so in the reply.
 - `unbound`. In an interactive top-level session, gather candidates with `git remote -v`, `command -v` for the likely CLIs, and `mcp({})`. Propose them to the user with that evidence and ask which one to bind. Write the binding only after the user confirms. In an autonomous run or in a subagent, skip the capability, name the gap in the reply, and record nothing. A guess never becomes a binding. An unbound `review-bots` is the exception, used as its key says, with no question and no gap.
 - `recipe missing`, `invalid`, or a bound tool that is not there (the CLI is absent, the MCP server is not in `mcp({})`, or auth fails). The binding is stale. Stop that capability, name the binding and its file, and propose a rebind. Never fall back to `gh` or to another tool of the same kind, even one that is installed, connected, or found through an MCP search. A replacement is a new binding, so the `unbound` rules decide who may choose it. In an autonomous run or in a subagent, report the stale binding and do not look for a replacement.
@@ -35,13 +35,15 @@ A playbook that waits for a terminal state picks one form by what the recipe's `
 - A watch only the agent can do, such as an MCP call. An async subagent polls it until a terminal state, and its completion wakes the session.
 - No `watch` section. A `bg_run` timer wakes the session, and each wake runs one `view` and one `checks`.
 
+When `ci` is bound apart from the forge, wait on it the same way, by the `ci` recipe's `watch` or by the timer form with its `checks`. A terminal forge state is not final while that CI still runs.
+
 The watch's exit or the timer drives every wake. Never add a second sleep loop. Rearm after every push wave and every verdict you act on.
 
 ## Write a binding
 
 Only a top-level session writes, and only after the user confirms the tool. Ask the user where the binding belongs:
 
-- This project. Run `sh <poteto-mode dir>/scripts/integrations.sh --create` from the main checkout and write to the target it prints.
+- This project. Run `sh <poteto-mode dir>/scripts/integrations.sh --create` from the main checkout and write to the target it prints. When it prints `none` because git tracks the layer, write nothing and tell the user.
 - A parent folder that several projects share. Run the same command from that folder.
 - The user layer, for a choice that holds in every project. The script prints its path. Create it if it does not exist.
 
@@ -56,4 +58,4 @@ Bitbucket Data Center at bb.corp.example. MCP server `bitbucket`. Project PLAT.
 none
 ```
 
-A tool the package has no recipe for gets `recipes/<name>.md` in the same layer, with one `## <operation>` section for each operation the playbooks name. Draft it per step 13.3 of the **setup-pstack** skill (`<poteto-mode dir>/../setup-pstack/SKILL.md`) before you write the binding that names it. The package ships `github-gh` and `origin` for the forge. For the evidence keys (`tracker`, `docs`, `chat`, `observability`, `errors`, and `analytics`), a recipe is one investigator playbook in the shape of the **why** skill's source playbooks, not a set of operation sections, and those playbooks resolve by name after the package's recipes, as in `recipe: linear`. A recipe can drive a CLI, an MCP tool call, an HTTP API, or the project's own script. Both files hold names and commands only. Auth stays in the tool's own config. Rerun the script after writing and check that the key resolves to `bound`.
+A tool the package has no recipe for gets `recipes/<name>.md` in the same layer, with one `## <operation>` section for each operation the playbooks name. Its first line names the tool it drives, such as the CLI or the MCP server. Draft it per step 13.3 of the **setup-pstack** skill (`<poteto-mode dir>/../setup-pstack/SKILL.md`) before you write the binding that names it. The package ships `github-gh` and `origin` for the forge. For the evidence keys (`tracker`, `docs`, `chat`, `observability`, `errors`, and `analytics`), a recipe is one investigator playbook in the shape of the **why** skill's source playbooks, not a set of operation sections, and those playbooks resolve by name after the package's recipes, as in `recipe: linear`. A recipe can drive a CLI, an MCP tool call, an HTTP API, or the project's own script. Both files hold names and commands only. Auth stays in the tool's own config. Rerun the script after writing and check that the key resolves to `bound`.
