@@ -22,6 +22,7 @@ while [ $# -gt 0 ]; do
 	esac
 done
 
+here=$(cd "$(dirname "$0")" && pwd)
 repo="${1:-$(git rev-parse --show-toplevel 2>/dev/null)}"
 [ -z "$repo" ] && { echo "not in a git repo; pass a repo path" >&2; exit 1; }
 cd "$repo" || exit 1
@@ -51,7 +52,7 @@ git rev-parse --verify --quiet "$base^{commit}" >/dev/null 2>&1 || { echo "error
 # state, through the CLI of the resolved forge recipe. Empty for any other
 # forge or when the CLI cannot read this repo's PRs.
 prs=$(mktemp)
-forge=$(sh "$(dirname "$0")/integrations.sh" forge 2>/dev/null)
+forge=$(sh "$here/integrations.sh" forge 2>/dev/null)
 forge_status=$(printf '%s\n' "$forge" | sed -n 's/^== forge: //p')
 forge_recipe=$(printf '%s\n' "$forge" | sed -n 's/^recipe: \(.*\) at .*/\1/p' | head -1)
 case "$forge_status:$forge_recipe" in

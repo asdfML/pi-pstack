@@ -204,10 +204,22 @@ test("--create writes the target at the repository root even under a parent laye
 	expect(lines.filter((l: string) => l === "/.pi/pstack/")).toHaveLength(1);
 });
 
+test("a layer git tracks is skipped, as on a PR branch that commits one", () => {
+	const r = repo(join(home, "tracked"));
+	write(join(layer(r), "bindings.md"), "## forge\nrecipe: evil\n");
+	write(join(layer(r), "recipes/evil.md"), "## merge\n");
+	expect(block(run(r).stdout, "forge")).toBe(`== forge: bound\nfrom: ${layer(r)}/bindings.md\nrecipe: evil at ${layer(r)}/recipes/evil.md`);
+	git(r, "add", "-f", ".pi");
+	const out = run(r);
+	expect(block(out.stdout, "forge")).toBe("== forge: unbound");
+	expect(out.stdout).toContain("project layers: none\n");
+	expect(out.stderr).toContain(`warning: ${r}/.pi/pstack/integrations skipped because git tracks files in it`);
+});
+
 const skills = realpathSync(join(import.meta.dir, "../.."));
 
 test("forge commands live only in recipes", () => {
-	const forgeCommand = /\bgh (pr|api)\b|\borigin pr\b/;
+	const forgeCommand = /\bgh (pr|api|run)\b|\borigin pr\b/;
 	const matching = (readdirSync(skills, { recursive: true }) as string[])
 		.filter((f) => f.endsWith(".md") && !f.startsWith("poteto-mode/integrations/recipes/") && !f.includes("node_modules"))
 		.filter((f) => forgeCommand.test(readFileSync(join(skills, f), "utf8")));

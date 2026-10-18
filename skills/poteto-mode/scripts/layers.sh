@@ -25,11 +25,16 @@ root=$start
 
 # Every existing <d>/.pi/pstack/$1, nearest first, one per line. A linked worktree lives outside its
 # main checkout, so it also reads the layers above the main checkout, nearer than any ancestor the
-# two share.
+# two share. A layer git tracks is skipped: a branch, such as a PR head under review, could ship it.
 layer_dirs() {
   main=$(chain "$root")
   { chain "$start" | grep -vxF -e "$main"; printf '%s\n' "$main"; } | while IFS= read -r d; do
-    [ -n "$d" ] && [ -d "$d/.pi/pstack/$1" ] && printf '%s\n' "$d/.pi/pstack/$1"
+    [ -n "$d" ] && [ -d "$d/.pi/pstack/$1" ] || continue
+    if [ -n "$(git -C "$d" ls-files -- ".pi/pstack/$1" 2>/dev/null | head -n 1)" ]; then
+      echo "warning: $d/.pi/pstack/$1 skipped because git tracks files in it" >&2
+      continue
+    fi
+    printf '%s\n' "$d/.pi/pstack/$1"
   done
 }
 
