@@ -72,7 +72,19 @@ test("the nearest layer wins per key, and other keys fall through to farther lay
 		`== tracker: bound\nfrom: ${layer(ws)}/bindings.md\nrecipe: ws-jira at ${layer(ws)}/recipes/ws-jira.md\nProject PLAT.`,
 	);
 	expect(block(out, "chat")).toBe(`== chat: none\nfrom: ${user}/bindings.md\nNo team chat.`);
-	expect(block(out, "ci")).toBe("== ci: unbound");
+	expect(block(out, "ci")).toBe(ciSameAsForge);
+});
+
+const ciSameAsForge =
+	"== ci: same as forge\nNo layer binds ci, so the forge recipe's `checks`, `logs`, and `rerun` sections serve CI.";
+
+test("ci with no binding falls back to the forge, and a ci binding still wins", () => {
+	const r = repo(join(home, "ci-fallback"), "https://github.com/o/r.git");
+	expect(block(run(r).stdout, "ci")).toBe(ciSameAsForge);
+	write(join(layer(r), "bindings.md"), "## ci\nrecipe: user-only\nJenkins.\n");
+	expect(block(run(r).stdout, "ci")).toBe(
+		`== ci: bound\nfrom: ${layer(r)}/bindings.md\nrecipe: user-only at ${user}/recipes/user-only.md\nJenkins.`,
+	);
 });
 
 test("a github.com remote, https or ssh, or an ssh alias for GitHub gives the package default forge", () => {

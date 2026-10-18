@@ -78,6 +78,9 @@ EOF
     if [ "$1" = forge ] && github; then
       printf '\n== forge: package default\nrecipe: github-gh at %s\n' "$(recipe github-gh)"
       echo "The remote is on github.com and no layer binds forge. If \`command -v origin\` succeeds and \`origin pr list --limit 1\` works in this repository, use the origin recipe at $(recipe origin) instead."
+    elif [ "$1" = ci ]; then
+      printf '\n== ci: same as forge\n'
+      echo "No layer binds ci, so the forge recipe's \`checks\`, \`logs\`, and \`rerun\` sections serve CI."
     else
       printf '\n== %s: unbound\n' "$1"
     fi
