@@ -292,16 +292,37 @@ test("--create through a local .pi symlink into this repository keeps the real f
 	expect(git(r, "status", "--porcelain")).not.toContain("pstack");
 });
 
-test("from inside a submodule, the superproject's committed layer is skipped too", () => {
+test("--create through a layer symlink into this repository keeps the layer's real folder out of git", () => {
+	const r = repo(join(home, "layer-link"));
+	mkdirSync(join(r, "local-integrations"));
+	mkdirSync(join(r, ".pi/pstack"), { recursive: true });
+	symlinkSync("../../local-integrations", layer(r));
+	expect(run(r, ["--create"]).status).toBe(0);
+	write(join(layer(r), "bindings.md"), "## forge\nnone\n");
+	expect(git(r, "status", "--porcelain", "--untracked-files=all")).toBe("");
+});
+
+test("a .pi symlink into .git is read, since nothing in .git is in a work tree", () => {
+	const r = repo(join(home, "git-link"));
+	write(join(r, ".git/pi-local/pstack/integrations/bindings.md"), "## forge\nnone\n");
+	symlinkSync(".git/pi-local", join(r, ".pi"));
+	expect(block(run(r).stdout, "forge")).toBe(`== forge: none\nfrom: ${layer(r)}/bindings.md`);
+});
+
+test("from inside a submodule, the superproject's committed layer is skipped and the submodule's own layer is read", () => {
+	const src = repo(join(home, "lib-src"));
+	git(src, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "init");
 	const sup = repo(join(home, "super"));
 	write(join(layer(sup), "bindings.md"), evil);
 	git(sup, "add", "-f", ".pi");
-	const lib = repo(join(sup, "lib"));
-	git(lib, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "init");
-	git(sup, "add", "lib");
-	const out = run(lib);
+	git(sup, "-c", "protocol.file.allow=always", "submodule", "add", "-q", src, "lib");
+	const lib = join(sup, "lib");
+	const out = run(lib, ["--create"]);
 	expect(block(out.stdout, "forge")).toBe("== forge: unbound");
 	expect(out.stderr).toContain(`warning: ${layer(sup)} skipped because git tracks it\n`);
+	const target = out.stdout.match(/^project write target: (.*)$/m)![1];
+	write(join(target, "bindings.md"), "## forge\nnone\n");
+	expect(block(run(lib).stdout, "forge")).toBe(`== forge: none\nfrom: ${target}/bindings.md`);
 });
 
 test("layers another repository tracks stay the user's: a dotfiles symlink, a nested repo, a versioned parent folder", () => {

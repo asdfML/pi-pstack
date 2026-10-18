@@ -49,20 +49,22 @@ layer_dirs() {
 # target lives in, never counts.
 tracked() {
   [ -n "$common" ] || return 1
-  d=${1%/.pi/pstack/*}
-  ours "$d" &&
-    git -C "$d" ls-files -z -- ':(icase).pi' 2>/dev/null | tr '\0' '\n' | awk -v l=".pi/pstack/${1##*/}" '
+  top=${1%/.pi/pstack/*}
+  ours "$top" &&
+    git -C "$top" ls-files -z -- ':(icase,literal).pi' 2>/dev/null | tr '\0' '\n' | awk -v l=".pi/pstack/${1##*/}" '
       { p = tolower($0) } p == ".pi" || p == ".pi/pstack" || p == l || index(p, l "/") == 1 { f = 1; exit }
       END { exit !f }' && return 0
   p=$1 rest=
   while [ -n "$p" ] && [ ! -d "$p" ]; do rest=${p##*/}${rest:+/$rest}; p=${p%/*}; done
-  ours "$p" && [ -n "$(git -C "$p" ls-files -- ":(icase)${rest:-.}" 2>/dev/null | head -n 1)" ]
+  ours "$p" && [ -n "$(git -C "$p" ls-files -- ":(icase,literal)${rest:-.}" 2>/dev/null | head -n 1)" ]
 }
 
-# True when the directory $1 is in this project's repository or in its superproject's.
+# True when the directory $1 is in a work tree of this project's repository or of its superproject.
+# A directory inside .git is in no work tree.
 ours() {
-  c=$(git -C "$1" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
-  [ -n "$c" ] && { [ "$c" = "$common" ] || [ "$c" = "$super" ]; }
+  [ "$(git -C "$1" rev-parse --is-inside-work-tree 2>/dev/null)" = true ] || return 1
+  c=$(git -C "$1" rev-parse --path-format=absolute --git-common-dir)
+  [ "$c" = "$common" ] || { [ -n "$super" ] && [ "$c" = "$super" ]; }
 }
 
 # Set target to the project write target for layer $1: the nearest layer in $2, the output of
@@ -96,20 +98,30 @@ create_target() {
   [ -z "$target" ] || make_layer "$target"
 }
 
-# Create the layer $1, a <d>/.pi/pstack/<sub> path, and keep its .pi/pstack/ out of the git of <d>'s
-# checkout through .git/info/exclude, once: at its real path when that is in the same repository, as
-# through a local symlink. A repository the folder itself lives in is left alone.
+# Create the layer $1, a <top>/.pi/pstack/<sub> path, and keep it out of the git of <top>'s checkout
+# through .git/info/exclude, once. Its files can sit at two real paths, as through a local symlink at
+# .pi or at the layer: the real .pi/pstack folder and the layer's own real folder. Each one in that
+# checkout's work tree is excluded; with neither there, <top>'s .pi/pstack/ is. A repository the
+# folder itself lives in is left alone.
 make_layer() {
   mkdir -p "$1" || return 1
-  d=${1%/.pi/pstack/*}
-  git_dir=$(git -C "$d" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
-  [ -n "$git_dir" ] || return 0
-  if [ "$(git -C "$1" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" = "$git_dir" ]; then
-    line="/$(git -C "$(dirname "$1")" rev-parse --show-prefix)"
-  else
-    line="/$(git -C "$d" rev-parse --show-prefix).pi/pstack/"
-  fi
+  top=${1%/.pi/pstack/*}
+  [ "$(git -C "$top" rev-parse --is-inside-work-tree 2>/dev/null)" = true ] || return 0
+  git_dir=$(git -C "$top" rev-parse --path-format=absolute --git-common-dir)
   mkdir -p "$git_dir/info" || return 1
-  grep -qxF "$line" "$git_dir/info/exclude" 2>/dev/null ||
-    echo "$line" >>"$git_dir/info/exclude"
+  pstack=$(in_tree "$(dirname "$1")") || pstack="/$(git -C "$top" rev-parse --show-prefix).pi/pstack/"
+  exclude "$pstack"
+  own=$(in_tree "$1") && case $own in "$pstack"*) ;; *) exclude "$own" ;; esac
+  return 0
+}
+
+# The exclude line for the directory $1 when it is in a work tree of $git_dir's repository.
+in_tree() {
+  [ "$(git -C "$1" rev-parse --is-inside-work-tree 2>/dev/null)" = true ] &&
+    [ "$(git -C "$1" rev-parse --path-format=absolute --git-common-dir)" = "$git_dir" ] &&
+    echo "/$(git -C "$1" rev-parse --show-prefix)"
+}
+
+exclude() {
+  grep -qxF "$1" "$git_dir/info/exclude" 2>/dev/null || echo "$1" >>"$git_dir/info/exclude"
 }
