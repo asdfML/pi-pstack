@@ -118,4 +118,4 @@ Verdicts and what each means for the loop:
 
 ## merge-ready
 
-The watcher reports `READY` in single or stack mode, or `WAITING` with reason `merge-queue` in queued mode. After a queued `TIMEOUT`, the frontier it names is merge-ready when the one `--status-only` pass the `watch` section describes reads a plain ✅ in every column.
+The watcher reports `READY` in single or stack mode, or `WAITING` with reason `merge-queue` in queued mode. After a queued `TIMEOUT`, the frontier it names is merge-ready when the one `--status-only` pass the `watch` section describes reads a plain ✅ in the CI, Review, and Merge columns.
