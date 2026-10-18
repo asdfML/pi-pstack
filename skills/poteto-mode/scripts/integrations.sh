@@ -4,7 +4,9 @@
 # Project layers are every .pi/pstack/integrations/ at or above it (from a linked worktree, also at
 # or above its main checkout), below $HOME, then the user layer. Per key, the nearest layer whose
 # bindings.md has a `## <key>` section wins, whole. The write target is always the main checkout's
-# layer, so a binding for one repository never lands in a folder other repositories share.
+# layer, so a binding for one repository never lands in a folder other repositories share. A
+# submodule is the exception: its write target sits under the superproject's .git/modules, which
+# every submodule shares.
 # --create also creates the write target and keeps its .pi/pstack/ out of git.
 . "$(dirname "$0")/layers.sh"
 keys="forge ci review-bots tracker chat docs observability errors analytics"

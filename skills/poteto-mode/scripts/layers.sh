@@ -59,12 +59,16 @@ tracked() {
   ours "$p" && [ -n "$(git -C "$p" ls-files -- ":(icase,literal)${rest:-.}" 2>/dev/null | head -n 1)" ]
 }
 
-# True when the directory $1 is in a work tree of this project's repository or of its superproject.
+# Print the common git dir of the repository whose work tree holds the directory $1, or fail.
 # A directory inside .git is in no work tree.
+repo_of() {
+  [ "$(git -C "$1" rev-parse --is-inside-work-tree 2>/dev/null)" = true ] &&
+    git -C "$1" rev-parse --path-format=absolute --git-common-dir
+}
+
+# True when the directory $1 is in a work tree of this project's repository or of its superproject.
 ours() {
-  [ "$(git -C "$1" rev-parse --is-inside-work-tree 2>/dev/null)" = true ] || return 1
-  c=$(git -C "$1" rev-parse --path-format=absolute --git-common-dir)
-  [ "$c" = "$common" ] || { [ -n "$super" ] && [ "$c" = "$super" ]; }
+  c=$(repo_of "$1") && { [ "$c" = "$common" ] || { [ -n "$super" ] && [ "$c" = "$super" ]; }; }
 }
 
 # Set target to the project write target for layer $1: the nearest layer in $2, the output of
@@ -102,26 +106,29 @@ create_target() {
 # through .git/info/exclude, once. Its files can sit at two real paths, as through a local symlink at
 # .pi or at the layer: the real .pi/pstack folder and the layer's own real folder. Each one in that
 # checkout's work tree is excluded; with neither there, <top>'s .pi/pstack/ is. A repository the
-# folder itself lives in is left alone.
+# folder itself lives in is left alone. Fails when an exclude line cannot be written.
 make_layer() {
   mkdir -p "$1" || return 1
   top=${1%/.pi/pstack/*}
-  [ "$(git -C "$top" rev-parse --is-inside-work-tree 2>/dev/null)" = true ] || return 0
-  git_dir=$(git -C "$top" rev-parse --path-format=absolute --git-common-dir)
+  git_dir=$(repo_of "$top") || return 0
   mkdir -p "$git_dir/info" || return 1
   pstack=$(in_tree "$(dirname "$1")") || pstack="/$(git -C "$top" rev-parse --show-prefix).pi/pstack/"
-  exclude "$pstack"
-  own=$(in_tree "$1") && case $own in "$pstack"*) ;; *) exclude "$own" ;; esac
-  return 0
+  own=$(in_tree "$1") || own=
+  # A / line excludes nothing, so a real .pi/pstack at the work tree's root leaves the layer's line.
+  if [ "$pstack" = / ]; then pstack=$own; own=; fi
+  [ -z "$pstack" ] || exclude "$pstack" || return 1
+  case $own in "" | "$pstack"*) return 0 ;; esac
+  exclude "$own"
 }
 
-# The exclude line for the directory $1 when it is in a work tree of $git_dir's repository.
+# The real path of the directory $1, as a path from the work tree's root, when it is in a work tree
+# of $git_dir's repository.
 in_tree() {
-  [ "$(git -C "$1" rev-parse --is-inside-work-tree 2>/dev/null)" = true ] &&
-    [ "$(git -C "$1" rev-parse --path-format=absolute --git-common-dir)" = "$git_dir" ] &&
-    echo "/$(git -C "$1" rev-parse --show-prefix)"
+  [ "$(repo_of "$1")" = "$git_dir" ] && echo "/$(git -C "$1" rev-parse --show-prefix)"
 }
 
+# Add the path $1 to $git_dir's exclude file once, with git's pattern characters escaped.
 exclude() {
-  grep -qxF "$1" "$git_dir/info/exclude" 2>/dev/null || echo "$1" >>"$git_dir/info/exclude"
+  line=$(printf '%s\n' "$1" | sed 's/[][*?\\]/\\&/g')
+  grep -qxF "$line" "$git_dir/info/exclude" 2>/dev/null || printf '%s\n' "$line" >>"$git_dir/info/exclude"
 }

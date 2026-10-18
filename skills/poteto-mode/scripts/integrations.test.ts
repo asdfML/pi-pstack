@@ -292,7 +292,7 @@ test("--create through a local .pi symlink into this repository keeps the real f
 	expect(git(r, "status", "--porcelain")).not.toContain("pstack");
 });
 
-test("worktree-audit.sh resolves the forge from the starting directory, so a nearer binding wins", () => {
+test("worktree-audit.sh resolves the forge from the starting directory, or from the repository it names, relative or not", () => {
 	const r = repo(join(home, "audit"));
 	git(r, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "init");
 	write(join(layer(r), "bindings.md"), "## forge\nrecipe: origin\n");
@@ -301,9 +301,12 @@ test("worktree-audit.sh resolves the forge from the starting directory, so a nea
 	write(join(bin, "origin"), `#!/bin/sh\ntouch ${marker}\n`);
 	chmodSync(join(bin, "origin"), 0o755);
 	const env = { ...process.env, HOME: home, PI_CODING_AGENT_DIR: join(home, "agent"), PATH: `${bin}:${process.env.PATH}` };
-	spawnSync("bash", [join(import.meta.dir, "worktree-audit.sh"), "-b", "HEAD"], { cwd: join(r, "sub"), env, encoding: "utf8" });
-	rmSync(join(bin, "origin"));
+	const audit = join(import.meta.dir, "worktree-audit.sh");
+	spawnSync("bash", [audit, "-b", "HEAD"], { cwd: join(r, "sub"), env, encoding: "utf8" });
 	expect(existsSync(marker)).toBe(false);
+	spawnSync("bash", [audit, "-b", "HEAD", "audit"], { cwd: home, env, encoding: "utf8" });
+	rmSync(join(bin, "origin"));
+	expect(existsSync(marker)).toBe(true);
 });
 
 test("--create through a layer symlink into this repository keeps the layer's real folder out of git", () => {
@@ -316,6 +319,30 @@ test("--create through a layer symlink into this repository keeps the layer's re
 	expect(git(r, "status", "--porcelain", "--untracked-files=all")).toBe("");
 });
 
+test("--create fails when it cannot keep the layer out of git", () => {
+	const r = repo(join(home, "ro-exclude"));
+	chmodSync(join(r, ".git/info/exclude"), 0o444);
+	expect(run(r, ["--create"]).status).toBe(1);
+});
+
+test("--create keeps a real folder whose name holds pattern characters out of git", () => {
+	const r = repo(join(home, "glob-link"));
+	mkdirSync(join(r, "config[1]*?\\"));
+	symlinkSync("config[1]*?\\", join(r, ".pi"));
+	expect(run(r, ["--create"]).status).toBe(0);
+	write(join(layer(r), "bindings.md"), "## forge\nnone\n");
+	expect(git(r, "status", "--porcelain", "--untracked-files=all")).not.toContain("pstack");
+});
+
+test("--create through a .pi/pstack symlink to the repository root keeps the layer out of git", () => {
+	const r = repo(join(home, "root-link"));
+	mkdirSync(join(r, ".pi"));
+	symlinkSync("..", join(r, ".pi/pstack"));
+	expect(run(r, ["--create"]).status).toBe(0);
+	write(join(layer(r), "bindings.md"), "## forge\nnone\n");
+	expect(git(r, "status", "--porcelain", "--untracked-files=all")).not.toContain("integrations");
+});
+
 test("a .pi symlink into .git is read, since nothing in .git is in a work tree", () => {
 	const r = repo(join(home, "git-link"));
 	write(join(r, ".git/pi-local/pstack/integrations/bindings.md"), "## forge\nnone\n");
@@ -323,7 +350,7 @@ test("a .pi symlink into .git is read, since nothing in .git is in a work tree",
 	expect(block(run(r).stdout, "forge")).toBe(`== forge: none\nfrom: ${layer(r)}/bindings.md`);
 });
 
-test("from inside a submodule, the superproject's committed layer is skipped and the submodule's own layer is read", () => {
+test("from inside a submodule, the superproject's committed layer is skipped and the write target sits under the superproject's .git/modules", () => {
 	const src = repo(join(home, "lib-src"));
 	git(src, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "init");
 	const sup = repo(join(home, "super"));
@@ -334,7 +361,8 @@ test("from inside a submodule, the superproject's committed layer is skipped and
 	const out = run(lib, ["--create"]);
 	expect(block(out.stdout, "forge")).toBe("== forge: unbound");
 	expect(out.stderr).toContain(`warning: ${layer(sup)} skipped because git tracks it\n`);
-	const target = out.stdout.match(/^project write target: (.*)$/m)![1];
+	const target = join(sup, ".git/modules/.pi/pstack/integrations");
+	expect(out.stdout).toContain(`project write target: ${target}\n`);
 	write(join(target, "bindings.md"), "## forge\nnone\n");
 	expect(block(run(lib).stdout, "forge")).toBe(`== forge: none\nfrom: ${target}/bindings.md`);
 });

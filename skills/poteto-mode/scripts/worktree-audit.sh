@@ -52,9 +52,9 @@ git rev-parse --verify --quiet "$base^{commit}" >/dev/null 2>&1 || { echo "error
 # PR state by branch, fetched once as [{number, state, head}] with a lowercase
 # state, through the CLI of the resolved forge recipe. Empty for any other
 # forge or when the CLI cannot read this repo's PRs. The forge resolves from the starting directory,
-# or from the repository the caller named.
+# or from the repository the caller named, relative to the starting directory.
 prs=$(mktemp)
-forge=$(cd "${1:-$start}" && sh "$here/integrations.sh" forge 2>/dev/null)
+forge=$(cd "$start" && cd "${1:-.}" && sh "$here/integrations.sh" forge 2>/dev/null)
 forge_status=$(printf '%s\n' "$forge" | sed -n 's/^== forge: //p')
 forge_recipe=$(printf '%s\n' "$forge" | sed -n 's/^recipe: \(.*\) at .*/\1/p' | head -1)
 case "$forge_status:$forge_recipe" in
