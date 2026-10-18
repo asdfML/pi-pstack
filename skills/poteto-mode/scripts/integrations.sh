@@ -55,25 +55,27 @@ EOF
   return 1
 }
 
-# Whether origin is on GitHub. An SSH host can be an alias from the ssh config, so ask ssh where it
-# points, as the remote's user, since a Match block can choose the host by user; `ssh -G` only
-# evaluates the config and never connects.
+# Whether origin is on GitHub. The host is read the way the transport reads it: an http(s) URL ends
+# its authority at /, ?, or #, as curl does, and an ssh URL at /, as git does. An SSH host can be an
+# alias from the ssh config, so ask ssh where it points, as the remote's user, since a Match block
+# can choose the host by user; `ssh -G` only evaluates the config and never connects.
 github() {
   url=$(git remote get-url origin 2>/dev/null) || return 1
   case $url in
-    http://* | https://* | ssh://*) auth=${url#*://}; auth=${auth%%[/?#]*} ;;
+    http://* | https://*) auth=${url#*://}; auth=${auth%%[/?#]*} ;;
+    ssh://* | git+ssh://* | ssh+git://*) auth=${url#*://}; auth=${auth%%/*} ;;
     *://*) return 1 ;;
     *:*) auth=${url%%:*}; case $auth in */*) return 1 ;; esac ;;
     *) return 1 ;;
   esac
-  host=${auth##*@} user=
-  case $auth in *@*) user=${auth%@*}@ ;; esac
+  host=${auth##*@} login=
+  case $auth in *@*) login=${auth%@*}@ ;; esac
   case $url in *://*) host=${host%:*} ;; esac
-  case $url in http://* | https://*) [ "$(printf '%s' "$host" | tr '[:upper:]' '[:lower:]')" = github.com ]; return ;; esac
-  [ "$host" = github.com ] && return 0
-  case $user$host in "" | -*) return 1 ;; esac
+  [ "$(printf '%s' "$host" | tr '[:upper:]' '[:lower:]')" = github.com ] && return 0
+  case $url in http://* | https://*) return 1 ;; esac
+  case $login$host in -*) return 1 ;; esac
   case $host in "" | -*) return 1 ;; esac
-  ssh -G "$user$host" </dev/null 2>/dev/null |
+  ssh -G "$login$host" </dev/null 2>/dev/null |
     awk '$1 == "hostname" { h = $2 } END { exit !(h == "github.com" || h == "ssh.github.com") }'
 }
 

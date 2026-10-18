@@ -99,6 +99,10 @@ test("a github.com remote, https or ssh, or an ssh alias for GitHub gives the pa
 		"git@github-work:o/r.git",
 		"ssh://git@gh443:443/o/r.git",
 		"me@forge-ctx:o/r.git",
+		"git@GitHub.com:o/r.git",
+		"git+ssh://git@github.com/o/r.git",
+		"ssh+git://git@github.com/o/r.git",
+		"ssh://git@evil.example?@github.com/o/r",
 	]) {
 		const r = repo(join(home, "gh", remote.replace(/\W/g, "")), remote);
 		expect(block(run(r).stdout, "forge")).toBe(
@@ -119,7 +123,7 @@ test("a non-GitHub remote, a non-GitHub ssh alias, a lookalike host, or no remot
 		"ssh://github.com@bitbucket.example/o/r.git",
 		"https://evil.example?@github.com/o/r",
 		"https://evil.example#@github.com/o/r",
-		"ssh://git@evil.example?@github.com/o/r",
+		"ssh://git@github.com?@evil.example/o/r",
 		"git@forge-ctx:o/r.git",
 		"ssh://git@forge-ctx:22/o/r.git",
 		undefined,
@@ -128,6 +132,10 @@ test("a non-GitHub remote, a non-GitHub ssh alias, a lookalike host, or no remot
 		expect(block(run(r).stdout, "forge")).toBe("== forge: unbound");
 	}
 	expect(block(run(join(home, "plain")).stdout, "forge")).toBe("== forge: unbound");
+	const dash = repo(join(home, "nogh", "dashuser"));
+	writeFileSync(join(dash, ".git/config"), readFileSync(join(dash, ".git/config"), "utf8") + '[remote "origin"]\n\turl = -F/x@github-work:o/r\n');
+	expect(git(dash, "remote", "get-url", "origin")).toBe("-F/x@github-work:o/r\n");
+	expect(block(run(dash).stdout, "forge")).toBe("== forge: unbound");
 });
 
 test("a forge binding beats the package default", () => {
