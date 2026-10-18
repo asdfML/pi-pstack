@@ -27,7 +27,8 @@ for a; do
 done
 [ -z "$want" ] && want=$keys
 
-write_target integrations
+# Bindings go to the main checkout's layer, never a nearer one, so no layer list is passed.
+write_target integrations ""
 code=0
 [ -n "$create" ] && { create_target || code=1; }
 
