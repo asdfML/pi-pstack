@@ -30,7 +30,7 @@ Ask the question you actually have. [`/skill:how`](../../skills/how/SKILL.md) re
 /skill:why was the retry limit set to five? does the reason still hold?
 ```
 
-[`/skill:why`](../../skills/why/SKILL.md) works like a detective on a cold case. It starts from source control, then queries whatever evidence categories your MCPs expose, such as the issue tracker, long-form docs, team chat, observability, error tracking, and analytics, all in parallel. The report cites everything, separates direct evidence from inference, and says "appears to" when the record is thin. A null result gets reported too, because "nobody wrote down why" is itself an answer.
+[`/skill:why`](../../skills/why/SKILL.md) works like a detective on a cold case. It starts from source control, then queries the evidence categories your project binds, such as the issue tracker, long-form docs, team chat, observability, error tracking, and analytics, all in parallel. A category you haven't bound gets asked about once, as [Bind your project's tools](./09-make-it-yours.md#bind-your-projects-tools) describes. The report cites everything, separates direct evidence from inference, and says "appears to" when the record is thin. A null result gets reported too, because "nobody wrote down why" is itself an answer.
 
 The two compose naturally. `do why first then how` is a perfectly good prompt when you suspect the history explains the mess.
 
