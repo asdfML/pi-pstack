@@ -133,8 +133,8 @@ test("a non-GitHub remote, a non-GitHub ssh alias, a lookalike host, or no remot
 	}
 	expect(block(run(join(home, "plain")).stdout, "forge")).toBe("== forge: unbound");
 	const dash = repo(join(home, "nogh", "dashuser"));
-	writeFileSync(join(dash, ".git/config"), readFileSync(join(dash, ".git/config"), "utf8") + '[remote "origin"]\n\turl = -F/x@github-work:o/r\n');
-	expect(git(dash, "remote", "get-url", "origin")).toBe("-F/x@github-work:o/r\n");
+	writeFileSync(join(dash, ".git/config"), readFileSync(join(dash, ".git/config"), "utf8") + '[remote "origin"]\n\turl = -Fx@github-work:o/r\n');
+	expect(git(dash, "remote", "get-url", "origin")).toBe("-Fx@github-work:o/r\n");
 	expect(block(run(dash).stdout, "forge")).toBe("== forge: unbound");
 });
 
