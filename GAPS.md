@@ -21,16 +21,34 @@ revisit.
 - **Scale.** `orchestrate` assumes dozens to hundreds of subagents. Local parallelism is bounded
   by the machine and pi-subagents concurrency limits.
 
-## External integrations (make configurable later)
+## External integrations
 
-The first port keeps these as upstream wrote them. Next iteration: let `/skill:setup-pstack`
-record which tools the user has, and make skills and playbooks use that.
+Integrations are configurable per project. Each capability (forge, CI, review bots, tracker,
+chat, and the other `why` sources) resolves through `integrations.sh` to the tool the user bound,
+and playbooks run each operation from that tool's recipe. A GitHub remote with no binding uses the
+package's `github-gh` recipe. The agent reference is
+[`references/integrations.md`](skills/poteto-mode/references/integrations.md), and the user guide
+is [Bind your project's tools](docs/guide/09-make-it-yours.md#bind-your-projects-tools).
 
-- GitHub via `gh` (babysit, shipping, opening a PR, watch-pr).
-- Bugbot and the agentic security reviewer (`references/bugbot-triage.md`). Generalize to any
-  review bot.
-- Origin CLI as a landing path in Shipping.
-- `why` sources: Linear, Slack, Notion, Datadog, Sentry, Databricks.
+What remains:
+
+- `watch-pr` works only on github.com, and its pass count covers only Bugbot threads. On another
+  forge, Babysit and Shipping wait through the recipe's `watch` or a timer, and the pass count
+  comes from the `review-bots` binding.
+- `orch` computes the frontier only for `gh` and Origin (`Forge` in
+  `skills/poteto-mode/scripts/orch/store.ts`). With any other forge, the Orchestrate coordinator
+  keeps `frontier.json` by hand from the recipe's `view`.
+- `worktree-audit.sh` reads PR state only when the forge resolves to `github-gh` or `origin`. Any
+  other forge leaves the PR column at `-`.
+- The package ships recipes only for `github-gh` and `origin`, plus the `why` source playbooks
+  (Linear, Slack, Notion, Datadog, Sentry, Databricks, code archaeology, incident postmortem).
+  Every other tool needs a recipe the user writes or `/skill:setup-pstack` drafts.
+- `/skill:setup-pstack` step 13, which binds the project's tools and drafts recipes, has not been
+  run end to end.
+- GitHub detection resolves an SSH host alias with `ssh -G`. It never connects, but it evaluates
+  the user's SSH config, and a `Match exec` block runs its command (checked with a temporary
+  config). Only `github.com` and `ssh.github.com` count, so a GitHub Enterprise remote stays
+  unbound until the user binds it.
 
 ## Pi behavior the port works around
 
@@ -44,7 +62,10 @@ record which tools the user has, and make skills and playbooks use that.
 - **Nested subagent calls need permission.** With pi-permission-system set to ask, every
   `subagent` call a child makes goes to the main session's authorizer chain. Unattended runs need
   an auto-review model or allow rules for `subagent`, `bash`, `bg_run`, and the goal tools.
-  Checked interactively, including depth-3 chains.
+  Checked interactively, including depth-3 chains. In the integrations Eval, the authorizer
+  rejected two of eight candidate launches and one push to a local bare repository, so those arms
+  produced no result. In one more arm it alone stopped a candidate from opening a PR through an
+  MCP server the binding did not name. Read the authorizer's decisions before scoring an Eval arm.
 - **`auto` role value dropped.** Cursor's `auto` model alias has no Pi equivalent. Roles take
   `provider/id[:level]` or `inherit-parent`.
 

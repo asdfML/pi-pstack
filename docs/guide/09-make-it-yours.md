@@ -1,6 +1,6 @@
 # Make it yours
 
-poteto-mode is one person's style. The machinery underneath, playbooks, routing, model roles, works just as well wearing yours. This page covers generating a personal mode, capturing lessons from a session, fixing the repo so agents stop repeating mistakes, authoring a focused skill, and testing a skill change before you trust it.
+poteto-mode is one person's style. The machinery underneath, playbooks, routing, model roles, works just as well wearing yours. This page covers generating a personal mode, capturing lessons from a session, fixing the repo so agents stop repeating mistakes, binding the tools each project uses, authoring a focused skill, and testing a skill change before you trust it.
 
 Start smaller than you think. You don't need many skills on day one, or even this whole package. Prompt plainly, watch where agents fail, and add a skill or a check when the same failure shows up twice.
 
@@ -48,6 +48,77 @@ Human review isn't on the list. A reviewer who must catch the same mistake on ev
 It reads recent commits, reverts, review comments, and comments that explain workarounds, then groups the mistakes into classes. A class counts once it has happened twice. It fixes the most frequent classes one commit each, at the highest level that works, and proves each new check fails on a real past mistake. It also keeps a table in the agent instruction file that pairs each rule with what enforces it, so a rule that nothing enforces shows up as a repeat. The reply lists each class with its evidence, the level chosen, and why a higher level didn't work.
 
 Run it with no argument and it finds the classes from history on its own. `/skill:reflect` and `/skill:correct` split the work. `/skill:reflect` improves skills from one session. `/skill:correct` changes the repo so a mistake class can't come back. Pair it with `/skill:architect` when the fix is a new boundary. [Run many projects in parallel](./07-overnight.md#run-many-projects-in-parallel) has a prompt that does both across a whole repo.
+
+## Bind your project's tools
+
+pstack opens PRs, reads CI, and gathers evidence through the tools you choose for each project. A hobby repo can use `gh` while a work repo uses a Bitbucket MCP server and Jira. pstack never picks a tool because it's installed or connected. An MCP server you connect once shows up in every project, and the repo doesn't say which tracker or chat your team uses.
+
+A GitHub repository needs no setup. When the repository's `origin` remote points at github.com, directly or through an SSH host alias, the forge resolves to the package's `gh` recipe. If the Origin CLI is installed and can read the repository's PRs, the agent uses the Origin recipe instead. CI runs through the same recipe until you bind it separately.
+
+Any other forge, CI, tracker, or chat starts unbound. Bind it once in `/skill:setup-pstack`, which offers the step when you start it inside a project:
+
+```text
+/skill:setup-pstack
+```
+
+If you skip that, the first run that needs the capability asks you. It gathers candidates from `git remote -v`, the CLIs on your `PATH`, and `mcp({})`, shows you the evidence, and writes the binding only after you confirm. `none` is a valid answer for a capability the project doesn't use. An autonomous run or a subagent never asks and never writes. It skips the capability and names the gap in its report.
+
+Bindings live in `bindings.md` and recipes in `recipes/`, inside an `integrations/` folder in one of three places:
+
+- `.pi/pstack/integrations/` in the project, for one repository.
+- `.pi/pstack/integrations/` in a parent folder, for every project under it, such as `~/work/.pi/pstack/integrations/` for all your work repos. Your home directory itself never holds one.
+- `~/.pi/agent/pstack/integrations/`, for a choice that holds in every project. With `$PI_CODING_AGENT_DIR` set, it's `pstack/integrations/` in that directory.
+
+For each capability, the nearest folder whose `bindings.md` has a section for it wins. All of these files stay on your machine. pstack adds the project's `.pi/pstack/` to `.git/info/exclude`, so git never sees them and teammates who don't use pstack see no change.
+
+`bindings.md` has one `## <key>` section per capability. The keys are `forge`, `ci`, `review-bots`, `tracker`, `chat`, `docs`, `observability`, `errors`, and `analytics`. A section's first line is `recipe: <name>` or `none`. The rest is notes for the agent, such as the server name, the CLI, and the project key. Here a corporate project uses Bitbucket through an MCP server, tracks work in Jira, and has no team chat for pstack to read:
+
+```markdown
+## forge
+recipe: bitbucket
+Bitbucket Data Center at bb.corp.example. MCP server `bitbucket`. Project PLAT.
+
+## tracker
+recipe: jira
+CLI `jira`, project PLAT. The ticket key goes in the PR title.
+
+## chat
+none
+```
+
+A recipe tells the agent how one tool does the work. For the forge and CI, it has one `## <operation>` section for each operation the playbooks name, such as `create`, `view`, and `merge`. When a recipe has no section for an operation, the agent says the operation isn't supported and leaves it undone. For an evidence key such as `tracker`, a recipe is one investigator playbook for `/skill:why`, shaped like its [source playbooks](../../skills/why/references/sources/). The agent looks for `recipes/<name>.md` in the folders above, nearest first, then in the package. The package ships `github-gh` and `origin` for the forge, and the `/skill:why` source playbooks resolve by name, as in `recipe: linear`. The example above needs your own `recipes/bitbucket.md` and `recipes/jira.md`, and `/skill:setup-pstack` drafts a missing recipe from the tool's `--help` or its MCP tool descriptions.
+
+Here is the start of a GitLab forge recipe, `recipes/gitlab.md`, that drives the `glab` CLI. It's an example, so check each command against `glab --help` before you rely on it:
+
+````markdown
+## create
+
+Open the merge request ready, never as a draft, so leave out `--draft`. For a stack child, pass the parent branch as the target.
+
+```sh
+glab mr create --fill --yes [--target-branch <parent-branch>]
+```
+
+## view
+
+Read the merge request state before you refer to it.
+
+```sh
+glab mr view <number>
+```
+````
+
+When a bound tool is missing, the agent stops that capability. A CLI that isn't installed, an MCP server that isn't in `mcp({})`, failed auth, and a recipe that neither a folder nor the package has all count as a stale binding. The agent names the binding and its file and asks you to rebind. It never falls back to `gh` or to another tool of the same kind, even one that's installed. An autonomous run reports the stale binding and looks for no replacement.
+
+Neither file holds secrets. Write names and commands only. Tokens, URLs with credentials, and cookies stay in the tool's own config, such as the MCP server's settings or the CLI's login.
+
+To see what each capability resolves to, run the resolver from the project. `<pstack>` is the pi-pstack directory that `pi list` prints:
+
+```text
+sh <pstack>/skills/poteto-mode/scripts/integrations.sh
+```
+
+It prints each key with its status, the file it came from, the recipe path, and the binding's notes. `bound` and `package default` name the recipe in use. `same as forge` under `ci` means the forge recipe runs CI. `none` means the project doesn't use that capability, and `unbound` means nobody chose a tool yet. `recipe missing` and `invalid` point at a binding to fix.
 
 ## Author a focused skill
 

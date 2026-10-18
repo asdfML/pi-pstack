@@ -6,10 +6,11 @@
   lines that name Cursor-only tools, paths, or products, so `git merge upstream` stays cheap.
 - **No Cursor left behind.** The ported text names Pi tools and paths only. No references to
   Cursor features, built-ins, or names that do not exist in Pi.
-- **Not opinionated about the user's stack.** The user picks models, and later their external
-  tools (tracker, chat, VCS host, review bots), during `/skill:setup-pstack`. The port does not
-  hardcode a provider or a model. The first port keeps the external-tool text as upstream wrote
-  it. Making it configurable is tracked in [GAPS.md](GAPS.md).
+- **Not opinionated about the user's stack.** The user picks models during `/skill:setup-pstack`,
+  and the external tools (forge, CI, review bots, tracker, chat) per project, during setup or
+  when a run first needs one. The port does not hardcode a provider or a model. Its only tool
+  default is the forge of a GitHub remote with no binding, which is `gh`, or Origin when its CLI
+  works there. The remaining limits are in [GAPS.md](GAPS.md).
 - **Upstream skill names.** Skills keep their upstream names (`how`, `why`, `tdd`), with no
   `pstack-` prefix, to stay canonical with pstack.
 - **Fix inline.** Each skill carries its own Pi wording. No shared glossary that agents must read
@@ -42,4 +43,7 @@ Reference for humans syncing upstream. Agents never read this file.
 | Cursor built-in `create-skill` | the **Authoring or modifying a skill** playbook plus Pi's `docs/skills.md` |
 | `cursor-team-kit` `deslop`, `control-ui`, `control-cli` | ported into this package, visible to the model as upstream (copyright Cursor, `LICENSE-cursor-team-kit`, `NOTICE.md`) |
 | skills a skill generates for a project (`create-verification-skill`, `automate-me`) | `.agents/skills/<name>/` in the project |
+| `gh` by default, Origin when its CLI resolves the repository | integrations; `integrations.sh` resolves the forge and playbooks run each operation from its recipe. The package ships the `github-gh` and `origin` recipes, with `github-gh` as the default for a github.com remote |
+| built-in PR tool | removed; a PR tool from an MCP server or an extension is used only when the forge recipe names it |
+| the project's choice of tools (upstream names its tools in the skill text) | `.pi/pstack/integrations/` (`bindings.md` and `recipes/`) in the project or a parent folder, or `~/.pi/agent/pstack/integrations/`, excluded from git like lessons (**Integrations** in poteto-mode) |
 | edits to pstack's own skills (`reflect`, Bugbot learnings in Babysit, a broken skill mid-task) | lesson files that mirror the package path, in the project's `.pi/pstack/lessons/` or `pstack/lessons/` in the Pi agent directory (**Lessons** in poteto-mode); the package is never edited |
