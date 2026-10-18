@@ -392,6 +392,52 @@ describe("queued-stack cadence", () => {
     ]);
   });
 
+  it("a queued TIMEOUT names the current frontier, though the last WAITING names a merged one", async () => {
+    const one = context(40);
+    const two = context(41);
+    const base = fakeReader();
+    let readsOfOne = 0;
+    const reader = {
+      ...base,
+      async pullRequest(pr: PrContext) {
+        const facts = await base.pullRequest(pr);
+        if (pr.number !== one.number || ++readsOfOne === 1) return facts;
+        return { ...facts, state: "MERGED" as const, mergedAt: "2026-07-26T00:00:00Z" };
+      },
+      async checksFastPath(pr: PrContext) {
+        return pr.number === two.number
+          ? { kind: "checks" as const, checks: [pendingCheck()] }
+          : base.checksFastPath(pr);
+      },
+    } satisfies GitHubReader;
+    let now = 0;
+    const emitted: string[] = [];
+    const verdict = await runQueued({
+      dependencies: {
+        reader,
+        clock: {
+          now: () => now,
+          observedAt: () => "2026-07-26T00:00:00.000Z",
+          async sleep(seconds) {
+            now += seconds;
+          },
+        },
+        emit(event) {
+          emitted.push(
+            event.kind === "WAITING" ? `WAITING:${event.frontier.number}:${event.reason.kind}` : event.kind
+          );
+        },
+      },
+      contexts: [one, two],
+      options: { ...options, timeout: 10 },
+    });
+    expect(emitted).toEqual(["QUEUE", "STATUS", "WAITING:40:merge-queue", "ADVANCE"]);
+    expect(verdict.kind).toBe("TIMEOUT");
+    if (verdict.kind !== "TIMEOUT" || verdict.reason.kind !== "queued-stack")
+      throw new Error("expected a queued-stack TIMEOUT");
+    expect(Number(verdict.reason.frontier.number)).toBe(41);
+  });
+
   it("deduplicates identical waits and schedules the next due sweep", async () => {
     const queue = [context(50)] satisfies NonEmpty<PrContext>;
     let state = createQueueState(queue, 0);
