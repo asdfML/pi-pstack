@@ -90,6 +90,7 @@ test("ci with no binding falls back to the forge, and a ci binding still wins", 
 test("a github.com remote, https or ssh, or an ssh alias for GitHub gives the package default forge", () => {
 	for (const remote of [
 		"https://github.com/o/r.git",
+		"https://user:token@github.com:443/o/r.git",
 		"git@github.com:o/r.git",
 		"ssh://git@github.com/o/r.git",
 		"git@github-work:o/r.git",
@@ -110,6 +111,8 @@ test("a non-GitHub remote, a non-GitHub ssh alias, a lookalike host, or no remot
 		"git@bitbucket-work:o/r.git",
 		"https://github.com.evil.example/o/r.git",
 		"https://github-work/o/r.git",
+		"https://github.com:token@bitbucket.example/o/r.git",
+		"ssh://github.com@bitbucket.example/o/r.git",
 		undefined,
 	]) {
 		const r = repo(join(home, "nogh", (remote ?? "none").replace(/\W/g, "")), remote);

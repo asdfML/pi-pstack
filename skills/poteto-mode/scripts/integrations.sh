@@ -58,8 +58,9 @@ EOF
 github() {
   url=$(git remote get-url origin 2>/dev/null) || return 1
   case $url in
-    http://* | https://*) printf '%s\n' "$url" | grep -Eq '^https?://([^/@]+@)?github\.com[:/]'; return ;;
-    ssh://*) host=${url#ssh://}; host=${host%%/*}; host=${host##*@}; host=${host%:*} ;;
+    http://* | https://* | ssh://*)
+      host=${url#*://}; host=${host%%/*}; host=${host##*@}; host=${host%:*}
+      case $url in ssh://*) ;; *) [ "$host" = github.com ]; return ;; esac ;;
     *://*) return 1 ;;
     *:*) host=${url%%:*}; case $host in */*) return 1 ;; esac; host=${host##*@} ;;
     *) return 1 ;;
