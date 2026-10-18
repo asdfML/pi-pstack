@@ -28,9 +28,9 @@ Reference for humans syncing upstream. Agents never read this file.
 | `run_in_background: true` | `async: true` |
 | `model: <slug>` | `model: "<provider>/<id>[:<thinking>]"` from the user's roles file |
 | `-fast` model slugs, fast mode | removed; the user configures speed in setup |
-| `~/.cursor/rules/pstack-models.mdc` | `~/.pi/agent/pstack-models.md` |
+| `~/.cursor/rules/pstack-models.mdc` | `~/.pi/agent/pstack/models.md` |
 | `environment: "cloud"` | local run; isolation rule in GAPS.md |
-| agent store (path in the system prompt) | `.pi/pstack/` in the main checkout, excluded through `.git/info/exclude` (**Store** in poteto-mode) |
+| agent store (path in the system prompt) | `.pi/pstack/store/` in the main checkout, excluded with the rest of `.pi/pstack/` through `.git/info/exclude` (**Store** in poteto-mode) |
 | `git show origin/main:pstack/skills/...` | read from the installed package (`<pstack>/...`) |
 | Cursor restart | Pi restart; check `subagent({ action: "status" })` for surviving async runs |
 | `/<skill>` | `/skill:<skill>` |
@@ -42,4 +42,4 @@ Reference for humans syncing upstream. Agents never read this file.
 | Cursor built-in `create-skill` | the **Authoring or modifying a skill** playbook plus Pi's `docs/skills.md` |
 | `cursor-team-kit` `deslop`, `control-ui`, `control-cli` | ported into this package, visible to the model as upstream (copyright Cursor, `LICENSE-cursor-team-kit`, `NOTICE.md`) |
 | skills a skill generates for a project (`create-verification-skill`, `automate-me`) | `.agents/skills/<name>/` in the project |
-| edits to pstack's own skills (`reflect`, Bugbot learnings in Babysit, a broken skill mid-task) | lesson files that mirror the package path, in the project's `.agents/pstack-lessons/` or `pstack-lessons/` in the Pi agent directory (**Lessons** in poteto-mode); the package is never edited |
+| edits to pstack's own skills (`reflect`, Bugbot learnings in Babysit, a broken skill mid-task) | lesson files that mirror the package path, in the project's `.pi/pstack/lessons/` or `pstack/lessons/` in the Pi agent directory (**Lessons** in poteto-mode); the package is never edited |

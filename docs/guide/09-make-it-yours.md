@@ -28,7 +28,7 @@ Right after a task that taught you something, run:
 /skill:reflect that took way too long. capture what we learned so the next run doesn't repeat it.
 ```
 
-[`/skill:reflect`](../../skills/reflect/SKILL.md) sends the transcript to three parallel reviewers, then a synthesizer sorts the proposals into `Accepted`, `Rejected`, and `Backlog` and waits for your approval before any skill changes. A change to a pstack skill lands as a lesson file outside the package, in the project's `.agents/pstack-lessons/` or your own `pstack-lessons/` in the Pi agent directory, so `pi update` keeps it. Approve a proposal only if it would change a future decision. One weird session is an anecdote, not a rule.
+[`/skill:reflect`](../../skills/reflect/SKILL.md) sends the transcript to three parallel reviewers, then a synthesizer sorts the proposals into `Accepted`, `Rejected`, and `Backlog` and waits for your approval before any skill changes. A change to a pstack skill lands as a lesson file outside the package, in the project's `.pi/pstack/lessons/` or your own `pstack/lessons/` in the Pi agent directory, so `pi update` keeps it. Approve a proposal only if it would change a future decision. One weird session is an anecdote, not a rule.
 
 ## Fix the environment with `/skill:correct`
 

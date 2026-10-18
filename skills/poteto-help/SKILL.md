@@ -24,7 +24,7 @@ Infer the need from the message and the conversation. A named situation, such as
 
 Check the state that changes the answer, and mention it only when it does:
 
-- No `pstack-models.md` in the Pi agent directory (`$PI_CODING_AGENT_DIR`, else `~/.pi/agent`) means `/skill:setup-pstack` hasn't run for this user, so every role runs on the parent session's model.
+- No `pstack/models.md` in the Pi agent directory (`$PI_CODING_AGENT_DIR`, else `~/.pi/agent`) means `/skill:setup-pstack` hasn't run for this user, so every role runs on the parent session's model.
 - No `verify-*` skill or other app harness in the project means agents have no scripted way to drive the app. Mention `/skill:create-verification-skill` when the question is about proving a change works.
 
 When the model file is missing and it matters, ask whether the user wants to pick a model for each role and a reasoning budget now. It matters when the user is new, the question is about setup or cost, or the answer depends on which models run. Ask at most once per chat. If the need is also unclear, ask both questions together. Offer two choices:
@@ -35,7 +35,7 @@ When the model file is missing and it matters, ask whether the user wants to pic
 ## Get set up
 
 1. Install with `pi install` and the package source in the [README](../../README.md), plus the Pi packages it needs (pi-subagents, pi-goal-x).
-2. Run [`/skill:setup-pstack`](../setup-pstack/SKILL.md). It checks those packages, asks for a reasoning budget, maps a model to each role, and writes `pstack-models.md`. The file applies to the next subagent a skill spawns.
+2. Run [`/skill:setup-pstack`](../setup-pstack/SKILL.md). It checks those packages, asks for a reasoning budget, maps a model to each role, and writes `pstack/models.md`. The file applies to the next subagent a skill spawns.
 3. Start a real task with `/skill:poteto-mode`, a goal, and a check that can pass or fail.
 
 Installing changes nothing until the user invokes a skill. Only `/skill:setup-pstack` loads from the user's words. The [README](../../README.md) and [guide page 1](../../docs/guide/01-setup.md) have the details. Offer to word their first prompt with them, per [`references/prompting.md`](references/prompting.md).
@@ -133,7 +133,7 @@ Principles are one-rule skills that `/skill:poteto-mode` reads and cites in its 
 |---|---|
 | The mode stopped applying after a few turns | Start each task with `/skill:poteto-mode`, or turn on the routing block in `/skill:setup-pstack`. |
 | A question got treated as the next step of the last task | Say "new task", or say the turn doesn't need the mode. |
-| A new model choice had no effect | Skills read `pstack-models.md` at each spawn. Check that the role's line names a model from `subagent({ action: "models" })`, and that a playbook step spawned a subagent at all. |
+| A new model choice had no effect | Skills read `pstack/models.md` at each spawn. Check that the role's line names a model from `subagent({ action: "models" })`, and that a playbook step spawned a subagent at all. |
 | Runs cost more than expected | See the cost paragraph under Get set up. |
 | A skill didn't load on its own | Only `/skill:setup-pstack` loads from the user's words. The others load when the user types them or when `/skill:poteto-mode` runs them, and it doesn't run every skill. |
 | Parallel agents overwrote each other | Give each agent its own worktree (`worktree: true` on the `subagent` call). |
@@ -145,7 +145,7 @@ For a run that drifts, [`references/prompting.md`](references/prompting.md) has 
 ## Make pstack my own
 
 - [`/skill:automate-me`](../automate-me/SKILL.md) drafts a personal mode skill from the user's own history, to use alongside `/skill:poteto-mode`.
-- [`/skill:reflect`](../reflect/SKILL.md) after a session turns its lessons into edits the user approves. Amendments to pstack's own skills go to lesson files, in the project's `.agents/pstack-lessons/` or the user's `pstack-lessons/` in the Pi agent directory, so `pi update` keeps them. The Lessons section of [`poteto-mode`](../poteto-mode/SKILL.md) has the rules.
+- [`/skill:reflect`](../reflect/SKILL.md) after a session turns its lessons into edits the user approves. Amendments to pstack's own skills go to lesson files, in the project's `.pi/pstack/lessons/` or the user's `pstack/lessons/` in the Pi agent directory, so `pi update` keeps them. The Lessons section of [`poteto-mode`](../poteto-mode/SKILL.md) has the rules.
 - `/skill:poteto-mode write a skill for <workflow>` runs the authoring playbook. The eval playbook tests a skill change blind.
 - Fix a misbehaving skill outside the feature work where it went wrong: a lesson for a pstack skill, its own PR for a project skill.
 

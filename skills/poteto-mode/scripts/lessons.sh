@@ -1,12 +1,13 @@
 #!/bin/sh
 # Print the pstack lesson layers and every lesson in them. Run from the starting directory.
-# Project layers are every .agents/pstack-lessons/ at or above it (from a linked worktree, also at or
-# above its main checkout), below $HOME; the nearest one is
-# where new lessons go. With none, the write target is the store's root.
-# --create also creates the write target and keeps it out of git through .git/info/exclude.
+# Project layers are every .pi/pstack/lessons/ at or above it (from a linked worktree, also at or
+# above its main checkout), below $HOME; the nearest one is where new lessons go. With none, the
+# write target is .pi/pstack/lessons/ in the main checkout, next to the store.
+# --create also creates the write target and keeps its .pi/pstack/ out of git through
+# .git/info/exclude.
 agent="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
 case "$agent" in "~") agent=$HOME ;; "~/"*) agent="$HOME/${agent#"~/"}" ;; esac
-user="$agent/pstack-lessons"
+user="$agent/pstack/lessons"
 start=$(pwd -P)
 home=$(cd "$HOME" && pwd -P)
 
@@ -33,19 +34,19 @@ root=$start
 # checkout, nearer than any ancestor the two share.
 main=$(chain "$root")
 layers=$({ chain "$start" | grep -vxF -e "$main"; printf '%s\n' "$main"; } | while IFS= read -r d; do
-  [ -n "$d" ] && [ -d "$d/.agents/pstack-lessons" ] && printf '%s\n' "$d/.agents/pstack-lessons"
+  [ -n "$d" ] && [ -d "$d/.pi/pstack/lessons" ] && printf '%s\n' "$d/.pi/pstack/lessons"
 done) # nearest first, one per line
 [ -n "$layers" ] && layers="$layers
 "
 
 target=$(printf '%s' "$layers" | head -n 1)
-[ -z "$target" ] && allowed "$root" && target="$root/.agents/pstack-lessons"
+[ -z "$target" ] && allowed "$root" && target="$root/.pi/pstack/lessons"
 
 if [ "$1" = "--create" ] && [ -n "$target" ]; then
   mkdir -p "$target" || exit 1
   common=$(git -C "$target" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
   if [ -n "$common" ]; then
-    line="/$(git -C "$target" rev-parse --show-prefix)"
+    line="/$(git -C "$(dirname "$target")" rev-parse --show-prefix)"
     mkdir -p "$common/info" || exit 1
     grep -qxF "$line" "$common/info/exclude" 2>/dev/null ||
       echo "$line" >>"$common/info/exclude" || exit 1

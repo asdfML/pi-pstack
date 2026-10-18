@@ -34,7 +34,7 @@ Run:
 /skill:setup-pstack
 ```
 
-[`/skill:setup-pstack`](../../skills/setup-pstack/SKILL.md) detects the models you have access to, asks for a reasoning budget, shows you each role (code delegates, judgment, the review panels), and asks what you want. Answer the questions. It writes `pstack-models.md` in the Pi agent directory (`~/.pi/agent`, or `$PI_CODING_AGENT_DIR` when set), a small file every pstack skill reads when it spawns a subagent. Setup also checks the packages above and offers three settings: a third level of subagent nesting, a lessons block so every session reads your amendments to pstack's skills, and an optional routing block that points every session at `/skill:poteto-mode`.
+[`/skill:setup-pstack`](../../skills/setup-pstack/SKILL.md) detects the models you have access to, asks for a reasoning budget, shows you each role (code delegates, judgment, the review panels), and asks what you want. Answer the questions. It writes `pstack/models.md` in the Pi agent directory (`~/.pi/agent`, or `$PI_CODING_AGENT_DIR` when set), a small file every pstack skill reads when it spawns a subagent. Setup also checks the packages above and offers three settings: a third level of subagent nesting, a lessons block so every session reads your amendments to pstack's skills, and an optional routing block that points every session at `/skill:poteto-mode`.
 
 Out of the box every role runs on your session's model at your session's reasoning level. The budget sets the reasoning level of every role you give a model: `unlimited` is `max`, `large` is `xhigh`, `medium` is `high`, and `small` is `medium`. Lower budgets spend fewer tokens.
 

@@ -28,10 +28,10 @@ function run(cwd: string, args: string[] = [], agentDir = join(home, "agent")) {
 	return spawnSync("sh", [script, ...args], { cwd, env, encoding: "utf8" });
 }
 
-write(join(home, "agent/pstack-lessons/poteto-mode/SKILL.md"), "user lesson");
-write(join(home, ".agents/pstack-lessons/how/SKILL.md"), "home lesson");
-write(join(home, "ws/.agents/pstack-lessons/how/SKILL.md"), "workspace lesson");
-write(join(home, "ws/repo/.agents/pstack-lessons/how/SKILL.md"), "repo lesson");
+write(join(home, "agent/pstack/lessons/poteto-mode/SKILL.md"), "user lesson");
+write(join(home, ".pi/pstack/lessons/how/SKILL.md"), "home lesson");
+write(join(home, "ws/.pi/pstack/lessons/how/SKILL.md"), "workspace lesson");
+write(join(home, "ws/repo/.pi/pstack/lessons/how/SKILL.md"), "repo lesson");
 mkdirSync(join(home, "ws/repo/sub"), { recursive: true });
 mkdirSync(join(home, "solo/sub"), { recursive: true });
 git(join(home, "ws/repo"), "init", "-q");
@@ -39,7 +39,7 @@ git(join(home, "solo"), "init", "-q");
 
 test("every layer up to home is read, nearer layers last, and the nearest is the write target", () => {
 	const out = run(join(home, "ws/repo/sub")).stdout;
-	expect(out).toContain(`project write target: ${home}/ws/repo/.agents/pstack-lessons\n`);
+	expect(out).toContain(`project write target: ${home}/ws/repo/.pi/pstack/lessons\n`);
 	const user = out.indexOf("user lesson");
 	const workspace = out.indexOf("workspace lesson");
 	const repo = out.indexOf("repo lesson");
@@ -51,7 +51,7 @@ test("every layer up to home is read, nearer layers last, and the nearest is the
 
 test("with no layer above, a repo's write target is its main checkout", () => {
 	expect(run(join(home, "solo/sub")).stdout).toContain(
-		`project write target: ${home}/solo/.agents/pstack-lessons (not created yet)`,
+		`project write target: ${home}/solo/.pi/pstack/lessons (not created yet)`,
 	);
 });
 
@@ -68,34 +68,35 @@ test("home, its ancestors, and a git repository at home are never project layers
 });
 
 test("outside home, the starting directory is the write target", () => {
-	expect(run(outside).stdout).toContain(`project write target: ${outside}/.agents/pstack-lessons (not created yet)`);
+	expect(run(outside).stdout).toContain(`project write target: ${outside}/.pi/pstack/lessons (not created yet)`);
 });
 
-test("a symlinked .agents reaches the shared layer", () => {
-	write(join(home, "shared/.agents/pstack-lessons/x/a.md"), "shared lesson");
+test("a symlinked .pi reaches the shared layer", () => {
+	write(join(home, "shared/.pi/pstack/lessons/x/a.md"), "shared lesson");
 	mkdirSync(join(home, "copy"));
-	symlinkSync(join(home, "shared/.agents"), join(home, "copy/.agents"));
+	symlinkSync(join(home, "shared/.pi"), join(home, "copy/.pi"));
 	expect(run(join(home, "copy")).stdout).toContain("shared lesson");
 });
 
 test("a tilde in PI_CODING_AGENT_DIR expands like Pi does", () => {
-	expect(run(outside, [], "~/agent").stdout).toContain(`user layer: ${home}/agent/pstack-lessons\n`);
+	expect(run(outside, [], "~/agent").stdout).toContain(`user layer: ${home}/agent/pstack/lessons\n`);
 });
 
-test("--create makes the layer and excludes it from git, once", () => {
+test("--create makes the layer and excludes all of .pi/pstack from git, once", () => {
 	const repo = join(home, "fresh");
 	mkdirSync(repo);
 	git(repo, "init", "-q");
 	for (let i = 0; i < 2; i++) expect(run(repo, ["--create"]).status).toBe(0);
-	write(join(repo, ".agents/pstack-lessons/how/SKILL.md"), "fresh lesson");
+	write(join(repo, ".pi/pstack/lessons/how/SKILL.md"), "fresh lesson");
+	write(join(repo, ".pi/pstack/store/trail.md"), "store file");
 	expect(git(repo, "status", "--porcelain")).toBe("");
 	const lines = readFileSync(join(repo, ".git/info/exclude"), "utf8").split("\n");
-	expect(lines.filter((l: string) => l === "/.agents/pstack-lessons/")).toHaveLength(1);
+	expect(lines.filter((l: string) => l === "/.pi/pstack/")).toHaveLength(1);
 });
 
 test("--create excludes a nested layer at its own path", () => {
 	const repo = join(home, "nested");
-	write(join(repo, "sub/.agents/pstack-lessons/how/SKILL.md"), "nested lesson");
+	write(join(repo, "sub/.pi/pstack/lessons/how/SKILL.md"), "nested lesson");
 	git(repo, "init", "-q");
 	expect(run(join(repo, "sub"), ["--create"]).status).toBe(0);
 	expect(git(repo, "status", "--porcelain")).toBe("");
@@ -115,8 +116,8 @@ test("from a linked worktree, the write target is the main checkout, excluded th
 	git(main, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "init");
 	git(main, "worktree", "add", "-q", join(home, "wt-linked"));
 	const out = run(join(home, "wt-linked"), ["--create"]).stdout;
-	expect(out).toContain(`project write target: ${main}/.agents/pstack-lessons\n`);
-	write(join(main, ".agents/pstack-lessons/how/SKILL.md"), "main lesson");
+	expect(out).toContain(`project write target: ${main}/.pi/pstack/lessons\n`);
+	write(join(main, ".pi/pstack/lessons/how/SKILL.md"), "main lesson");
 	expect(git(main, "status", "--porcelain")).toBe("");
 	expect(run(join(home, "wt-linked")).stdout).toContain("main lesson");
 });

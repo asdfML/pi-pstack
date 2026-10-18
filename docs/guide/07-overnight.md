@@ -91,7 +91,7 @@ The contract above drives one task to one finish condition. Some nights hold mor
 
 ## Run many projects in parallel
 
-Give one coordinator session to each project. The coordinator doesn't write code. It directs subagents, which run on this machine in their own worktrees, so the machine and the Pi session stay up while the work runs. That's the shape the Orchestrate playbook expects. Start your prompts to the coordinator with `/skill:poteto-mode`, and the subagents it spawns follow the playbooks. The coordinator keeps its state in `.pi/pstack/` in the repository, so a fresh session can pick the project back up.
+Give one coordinator session to each project. The coordinator doesn't write code. It directs subagents, which run on this machine in their own worktrees, so the machine and the Pi session stay up while the work runs. That's the shape the Orchestrate playbook expects. Start your prompts to the coordinator with `/skill:poteto-mode`, and the subagents it spawns follow the playbooks. The coordinator keeps its state in `.pi/pstack/store/` in the repository, so a fresh session can pick the project back up.
 
 A few habits help:
 

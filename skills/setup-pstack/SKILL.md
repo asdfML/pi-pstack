@@ -5,7 +5,7 @@ description: Configure which models pstack uses per role and at what reasoning b
 
 # Setup pstack
 
-Write `pstack-models.md` in the Pi agent directory (`$PI_CODING_AGENT_DIR` when set, otherwise `~/.pi/agent`). pstack skills read it each time they spawn a subagent, so it sets pstack's model per role.
+Write `pstack/models.md` in the Pi agent directory (`$PI_CODING_AGENT_DIR` when set, otherwise `~/.pi/agent`). pstack skills read it each time they spawn a subagent, so it sets pstack's model per role.
 
 ## Steps
 
@@ -40,7 +40,7 @@ Run `subagent({ action: "models" })`. It lists the models a subagent can use, as
 
 ### 5. Load current state
 
-The default for every role is `inherit-parent`: the subagent runs on the parent session's model. The role list is the file shape in step 8 below. If `pstack-models.md` already exists, read it and treat its `# budget` line and its role values as the current choices. Otherwise start from the defaults. A line whose role is not in step 8 is from a retired role. Drop it.
+The default for every role is `inherit-parent`: the subagent runs on the parent session's model. The role list is the file shape in step 8 below. If `pstack/models.md` already exists, read it and treat its `# budget` line and its role values as the current choices. Otherwise start from the defaults. A line whose role is not in step 8 is from a retired role. Drop it.
 
 ### 6. Budget, map, and confirm
 
@@ -63,7 +63,7 @@ Every `provider/id` written must be in the detected set. `inherit-parent` always
 
 ### 8. Write the file
 
-Write `pstack-models.md` with a `# budget` line naming the chosen label and its reasoning level, and one line per role, using the same labels poteto-mode uses. Overwrite the whole file so re-runs stay idempotent. Shape:
+Write `pstack/models.md` with a `# budget` line naming the chosen label and its reasoning level, and one line per role, using the same labels poteto-mode uses. Overwrite the whole file so re-runs stay idempotent. Shape:
 
 ```
 # pstack model configuration. One line per role. Delete a line to fall back to the default (inherit-parent).
