@@ -36,6 +36,12 @@ After a merge, read the PR back with the JSON form. A landed PR reads `state` `M
 gh pr view <pr> --json state,mergedAt,baseRefName
 ```
 
+Read a PR's body and discussion, as the **why** skill does, with this JSON form.
+
+```sh
+gh pr view <number> --json title,body,author,createdAt,mergedAt,labels,closingIssuesReferences,comments,reviews
+```
+
 ## checks
 
 The command exits 8 while checks are pending. The `link` field of a GitHub Actions check holds its run id.

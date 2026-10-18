@@ -62,10 +62,9 @@ What remains:
 - **Nested subagent calls need permission.** With pi-permission-system set to ask, every
   `subagent` call a child makes goes to the main session's authorizer chain. Unattended runs need
   an auto-review model or allow rules for `subagent`, `bash`, `bg_run`, and the goal tools.
-  Checked interactively, including depth-3 chains. In the integrations Eval, the authorizer
-  rejected two of eight candidate launches and one push to a local bare repository, so those arms
-  produced no result. In one more arm it alone stopped a candidate from opening a PR through an
-  MCP server the binding did not name. Read the authorizer's decisions before scoring an Eval arm.
+  Checked interactively, including depth-3 chains. In an Eval, the authorizer can reject a
+  candidate's launch or push, or be the only thing that stops a wrong action, so read its
+  decisions before scoring an arm.
 - **`auto` role value dropped.** Cursor's `auto` model alias has no Pi equivalent. Roles take
   `provider/id[:level]` or `inherit-parent`.
 
