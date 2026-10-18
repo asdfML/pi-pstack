@@ -13,7 +13,12 @@ layers=$(layer_dirs lessons) # nearest first, one per line
 
 target=$(printf '%s' "$layers" | head -n 1)
 [ -z "$target" ] && allowed "$root" && target="$root/.pi/pstack/lessons"
+blocked=
+allowed "$root" && tracked "$root/.pi/pstack/lessons" && { blocked="$root/.pi/pstack/lessons"; target=; }
 
+if [ "$1" = "--create" ] && [ -n "$blocked" ]; then
+  echo "lessons.sh: git tracks files in $blocked, so it cannot hold lessons" >&2; exit 1
+fi
 if [ "$1" = "--create" ] && [ -n "$target" ]; then
   make_layer "$target" || exit 1
   [ -z "$layers" ] && layers="$target
@@ -21,7 +26,9 @@ if [ "$1" = "--create" ] && [ -n "$target" ]; then
 fi
 
 echo "user layer: $user"
-if [ -z "$target" ]; then
+if [ -n "$blocked" ]; then
+  echo "project write target: none, because git tracks files in $blocked"
+elif [ -z "$target" ]; then
   echo "project write target: none"
 elif [ -d "$target" ]; then
   echo "project write target: $target"

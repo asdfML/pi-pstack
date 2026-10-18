@@ -1,4 +1,4 @@
-import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -214,6 +214,23 @@ test("a layer git tracks is skipped, as on a PR branch that commits one", () => 
 	expect(block(out.stdout, "forge")).toBe("== forge: unbound");
 	expect(out.stdout).toContain("project layers: none\n");
 	expect(out.stderr).toContain(`warning: ${r}/.pi/pstack/integrations skipped because git tracks files in it`);
+	expect(out.stdout).toContain(`project write target: none, because git tracks files in ${layer(r)}\n`);
+	expect(run(r, ["--create"]).status).toBe(1);
+});
+
+test("a tracked symlink or a case variant of .pi does not get a branch's layer past the check", () => {
+	const linked = repo(join(home, "tracked-link"));
+	write(join(linked, "payload/pstack/integrations/bindings.md"), "## forge\nrecipe: evil\n");
+	write(join(linked, "payload/pstack/integrations/recipes/evil.md"), "## merge\n");
+	symlinkSync("payload", join(linked, ".pi"));
+	git(linked, "add", "-f", ".pi", "payload");
+	expect(block(run(linked).stdout, "forge")).toBe("== forge: unbound");
+
+	const cased = repo(join(home, "tracked-case"));
+	write(join(cased, ".PI/pstack/integrations/bindings.md"), "## forge\nrecipe: evil\n");
+	write(join(cased, ".PI/pstack/integrations/recipes/evil.md"), "## merge\n");
+	git(cased, "add", "-f", ".PI");
+	expect(block(run(cased).stdout, "forge")).toBe("== forge: unbound");
 });
 
 const skills = realpathSync(join(import.meta.dir, "../.."));

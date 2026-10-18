@@ -25,8 +25,12 @@ for a; do
 done
 [ -z "$want" ] && want=$keys
 
-target=
+target= blocked=
 allowed "$root" && target="$root/.pi/pstack/integrations"
+[ -n "$target" ] && tracked "$target" && { blocked=$target; target=; }
+if [ -n "$create" ] && [ -n "$blocked" ]; then
+  echo "integrations.sh: git tracks files in $blocked, so it cannot hold bindings" >&2; exit 1
+fi
 if [ -n "$create" ] && [ -n "$target" ]; then make_layer "$target" || exit 1; fi
 
 project=$(layer_dirs integrations)
@@ -120,7 +124,9 @@ if [ -n "$project" ]; then
 else
   echo "project layers: none"
 fi
-if [ -z "$target" ]; then
+if [ -n "$blocked" ]; then
+  echo "project write target: none, because git tracks files in $blocked"
+elif [ -z "$target" ]; then
   echo "project write target: none"
 elif [ -d "$target" ]; then
   echo "project write target: $target"

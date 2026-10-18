@@ -121,3 +121,18 @@ test("from a linked worktree, the write target is the main checkout, excluded th
 	expect(git(main, "status", "--porcelain")).toBe("");
 	expect(run(join(home, "wt-linked")).stdout).toContain("main lesson");
 });
+
+test("a layer git tracks is never read, written, or created, even with a layer above it", () => {
+	write(join(home, "work/.pi/pstack/lessons/x/a.md"), "parent lesson");
+	const r = join(home, "work/tracked");
+	write(join(r, ".pi/pstack/lessons/x/a.md"), "branch lesson");
+	git(r, "init", "-q");
+	git(r, "add", "-f", ".pi");
+	for (const args of [[], ["--create"]]) {
+		const out = run(r, args);
+		expect(out.stdout).not.toContain("branch lesson");
+		expect(out.stderr).toContain(`warning: ${r}/.pi/pstack/lessons skipped because git tracks files in it`);
+	}
+	expect(run(r).stdout).toContain(`project write target: none, because git tracks files in ${r}/.pi/pstack/lessons\n`);
+	expect(run(r, ["--create"]).status).toBe(1);
+});

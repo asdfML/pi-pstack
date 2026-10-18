@@ -30,12 +30,18 @@ layer_dirs() {
   main=$(chain "$root")
   { chain "$start" | grep -vxF -e "$main"; printf '%s\n' "$main"; } | while IFS= read -r d; do
     [ -n "$d" ] && [ -d "$d/.pi/pstack/$1" ] || continue
-    if [ -n "$(git -C "$d" ls-files -- ".pi/pstack/$1" 2>/dev/null | head -n 1)" ]; then
+    if tracked "$d/.pi/pstack/$1"; then
       echo "warning: $d/.pi/pstack/$1 skipped because git tracks files in it" >&2
       continue
     fi
     printf '%s\n' "$d/.pi/pstack/$1"
   done
+}
+
+# True when git tracks a file in directory $1. Git runs from inside it, so a tracked symlink on the
+# way, a case variant of the path, or a submodule there is caught too.
+tracked() {
+  [ -n "$(git -C "$1" ls-files 2>/dev/null | head -n 1)" ]
 }
 
 # Create the layer $1 and keep its .pi/pstack/ out of git through .git/info/exclude, once.
