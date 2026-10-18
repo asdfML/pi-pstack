@@ -54,7 +54,7 @@ Tests alone are not sufficient verification. A PR is verified only when its unit
 ### PR mechanics, for every PR
 
 - [ ] Resolve the forge once for the program per `<pstack>/poteto-mode/references/integrations.md`, and run every PR operation from the recipe it names. Never require `gt`.
-- [ ] Open the PR ready, never draft, per **Opening a PR**, with the forge recipe's `create` and `<base-branch>` as its base. A stack child targets its parent branch, and the recipe's `retarget` moves it.
+- [ ] Open the PR ready, never draft, per **Opening a PR**, with the forge recipe's `create` and `<base-branch>` as its base. A stack child targets its parent branch.
 - [ ] Run the repo's lint and typecheck once before the PR-facing push. Push with hooks on.
 - [ ] Run `/skill:deslop` before each commit and `/skill:no-comments` before review.
 - [ ] Triage every Bugbot and security-reviewer comment per `../references/bugbot-triage.md`.
