@@ -108,7 +108,8 @@ test("a github.com remote, https or ssh, or an ssh alias for GitHub gives the pa
 		expect(block(run(r).stdout, "forge")).toBe(
 			`== forge: package default\nrecipe: github-gh at ${pkg}/github-gh.md\n` +
 				"The remote is on github.com and no layer binds forge. If `command -v origin` succeeds and " +
-				`\`origin pr list --limit 1\` works in this repository, use the origin recipe at ${pkg}/origin.md instead.`,
+				`\`origin pr list --limit 1\` works in this repository, use the origin recipe at ${pkg}/origin.md instead. ` +
+				"Otherwise stay on github-gh and record the fallback.",
 		);
 	}
 });

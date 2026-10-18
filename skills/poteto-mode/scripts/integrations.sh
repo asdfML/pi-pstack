@@ -89,7 +89,7 @@ EOF
   if [ -z "$from" ]; then
     if [ "$1" = forge ] && github; then
       printf '\n== forge: package default\nrecipe: github-gh at %s\n' "$(recipe github-gh)"
-      printf 'The remote is on github.com and no layer binds forge. If `command -v origin` succeeds and `origin pr list --limit 1` works in this repository, use the origin recipe at %s instead.\n' "$(recipe origin)"
+      printf 'The remote is on github.com and no layer binds forge. If `command -v origin` succeeds and `origin pr list --limit 1` works in this repository, use the origin recipe at %s instead. Otherwise stay on github-gh and record the fallback.\n' "$(recipe origin)"
     elif [ "$1" = ci ]; then
       printf '\n== ci: same as forge\n'
       echo "No layer binds ci, so the forge recipe's \`checks\`, \`logs\`, and \`rerun\` sections serve CI."
