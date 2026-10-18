@@ -205,18 +205,11 @@ test("--create writes the target at the repository root even under a parent laye
 });
 
 const skills = realpathSync(join(import.meta.dir, "../.."));
-const notYetMigrated = [
-	"poteto-mode/playbooks/autopilot-full.md",
-	"poteto-mode/playbooks/autopilot-stack.md",
-	"poteto-mode/playbooks/multi-phase-plan.md",
-];
 
-test("forge commands live only in recipes, and the not-yet-migrated list only shrinks", () => {
+test("forge commands live only in recipes", () => {
 	const forgeCommand = /\bgh (pr|api)\b|\borigin pr\b/;
 	const matching = (readdirSync(skills, { recursive: true }) as string[])
 		.filter((f) => f.endsWith(".md") && !f.startsWith("poteto-mode/integrations/recipes/") && !f.includes("node_modules"))
-		.filter((f) => forgeCommand.test(readFileSync(join(skills, f), "utf8")))
-		.sort();
-	expect(matching.filter((f) => !notYetMigrated.includes(f))).toEqual([]);
-	expect(notYetMigrated.filter((f) => !matching.includes(f))).toEqual([]);
+		.filter((f) => forgeCommand.test(readFileSync(join(skills, f), "utf8")));
+	expect(matching).toEqual([]);
 });
