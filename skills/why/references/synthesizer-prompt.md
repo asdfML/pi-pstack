@@ -91,20 +91,20 @@ Specific gaps: "We searched the issue tracker for [query1], [query2], [query3] a
 
 - Questions that went unanswered
 - Searches that returned nothing
-- Sources that were unavailable, and why (such as a missing real-time team chat MCP)
+- Sources that were unavailable, and why (such as a real-time team chat with no tool bound)
 - People who would likely know but whom you can't ask
 
 ### Sources Consulted
 
 What was actually searched, so the user can judge coverage and redirect:
 
-- **Source control history**: {file paths}, {number of commits reviewed}, PRs #{numbers}, and code comments searched. Or "Not searched. This should not happen because git and `gh` are always expected."
-- **Issue / ticket tracker**: {ticket IDs and keyword searches}. Or "Not searched. No matching MCP available in this environment."
-- **Long-form documents**: {page titles and search queries}. Or "Not searched. No matching MCP available in this environment."
-- **Real-time team chat**: {channels searched, date ranges, queries}. Or "Not searched. No matching MCP available in this environment."
-- **Infrastructure observability**: {dashboards, monitors, metrics, logs, traces, or incidents searched}. Or "Not searched. No matching MCP available in this environment."
-- **Error / exception tracking**: {issues, events, or releases searched}. Or "Not searched. No matching MCP available in this environment."
-- **Product analytics warehouse**: {fully-qualified tables queried, the time windows, and the numeric summaries (counts, percentiles, first/last-seen timestamps) that bore on the question}. Or "Not searched. No matching MCP available in this environment."
+- **Source control history**: {file paths}, {number of commits reviewed}, PRs #{numbers}, and code comments searched. Or "Not searched. This should not happen because git is always expected."
+- **Issue / ticket tracker**: {ticket IDs and keyword searches}. Or "Not searched. The project does not use one." or "Not searched. No tool is bound."
+- **Long-form documents**: {page titles and search queries}. Or "Not searched. The project does not use one." or "Not searched. No tool is bound."
+- **Real-time team chat**: {channels searched, date ranges, queries}. Or "Not searched. The project does not use one." or "Not searched. No tool is bound."
+- **Infrastructure observability**: {dashboards, monitors, metrics, logs, traces, or incidents searched}. Or "Not searched. The project does not use one." or "Not searched. No tool is bound."
+- **Error / exception tracking**: {issues, events, or releases searched}. Or "Not searched. The project does not use one." or "Not searched. No tool is bound."
+- **Product analytics warehouse**: {fully-qualified tables queried, the time windows, and the numeric summaries (counts, percentiles, first/last-seen timestamps) that bore on the question}. Or "Not searched. The project does not use one." or "Not searched. No tool is bound."
 
 ### Confidence Summary
 

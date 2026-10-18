@@ -209,7 +209,6 @@ const notYetMigrated = [
 	"poteto-mode/playbooks/autopilot-full.md",
 	"poteto-mode/playbooks/autopilot-stack.md",
 	"poteto-mode/playbooks/multi-phase-plan.md",
-	"why/SKILL.md",
 ];
 
 test("forge commands live only in recipes, and the not-yet-migrated list only shrinks", () => {
