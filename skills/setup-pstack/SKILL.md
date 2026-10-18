@@ -126,3 +126,14 @@ Tell the user the file was written and that it applies to the next subagent a ps
 ### 12. Offer a verification skill (optional)
 
 Check whether the project has a way to drive the real app for proof (a `verify-*` skill, or an existing harness). If not, offer once: "want a project-local verification skill, so agents can drive the app the way a user does and prove changes work? I can generate one with /skill:create-verification-skill." On yes, run `/skill:create-verification-skill`. It writes the skill under the project's `.agents/skills/`. On no, move on without pushing.
+
+### 13. Offer to bind the project's tools (optional)
+
+Run `sh <absolute path>/poteto-mode/scripts/integrations.sh` from the starting directory, filling in the absolute path of the directory that holds this skill's directory. If it prints `project write target: none`, setup did not start inside a project, so skip this step. Otherwise offer once to bind the tools this project uses for the capabilities in `../poteto-mode/references/integrations.md`, such as its forge, CI, and tracker. Default to yes, since nothing is written until the user confirms a tool. On no, say that each capability resolves when a run first needs it, and that an unbound one is asked about then or skipped in an autonomous run.
+
+On yes:
+
+1. Show each key from the script's output in one short table, with its status and the file or recipe it resolved to.
+2. Ask which keys to set now. For each one, follow the `unbound` procedure in `../poteto-mode/references/integrations.md`. Gather candidates with their evidence, ask which one to bind, write the binding only after the user confirms, and ask where it belongs. `none` is a valid answer. Record it like any other binding.
+3. When the chosen tool has no recipe in any layer or the package, draft `recipes/<name>.md` in the binding's layer from the tool's own description. Read `mcp({ describe: "<tool>" })` for each MCP tool the recipe calls, or `<cli> --help` and `<cli> <subcommand> --help` for a CLI. Give the draft one `## <operation>` section for each operation the playbooks name for that key today. Those are the `## ` headings of the package recipes the reference names for the key. A key with no package recipe has no operations yet, so its recipe holds only a line naming the tool. Show the draft. Check it with one read-only operation, `view` on an existing PR the user names for the forge. A check never runs a write operation. Write the recipe after the user confirms.
+4. Rerun the script and report each key you set with the status it now resolves to.
