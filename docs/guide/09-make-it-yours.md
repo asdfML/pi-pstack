@@ -86,11 +86,13 @@ CLI `jira`, project PLAT. The ticket key goes in the PR title.
 none
 ```
 
-A recipe tells the agent how one tool does the work. For the forge and CI, it has one `## <operation>` section for each operation the playbooks name, such as `create`, `view`, and `merge`. When a recipe has no section for an operation, the agent does it with the same tool, reading its `--help` or MCP tool descriptions. It never switches to another tool. For an evidence key such as `tracker`, a recipe is one investigator playbook for `/skill:why`, shaped like its [source playbooks](../../skills/why/references/sources/). The agent looks for `recipes/<name>.md` in the folders above, nearest first, then in the package. The package ships `github-gh` and `origin` for the forge, and the `/skill:why` source playbooks resolve by name, as in `recipe: linear`. The example above needs your own `recipes/bitbucket.md` and `recipes/jira.md`, and `/skill:setup-pstack` drafts a missing recipe from the tool's `--help` or its MCP tool descriptions.
+A recipe tells the agent how one tool does the work. For the forge and CI, its first line names the tool, and it has one `## <operation>` section for each operation the playbooks name, such as `create`, `view`, and `merge`. When a recipe has no section for an operation, the agent does it with the same tool, reading its `--help` or MCP tool descriptions. It never switches to another tool. For an evidence key such as `tracker`, a recipe is one investigator playbook for `/skill:why`, shaped like its [source playbooks](../../skills/why/references/sources/). The agent looks for `recipes/<name>.md` in the folders above, nearest first, then in the package. The package ships `github-gh` and `origin` for the forge, and the `/skill:why` source playbooks resolve by name, as in `recipe: linear`. The example above needs your own `recipes/bitbucket.md` and `recipes/jira.md`, and `/skill:setup-pstack` drafts a missing recipe from the tool's `--help` or its MCP tool descriptions.
 
 Here is the start of a GitLab forge recipe, `recipes/gitlab.md`, that drives the `glab` CLI. It's an example, so check each command against `glab --help` before you rely on it:
 
 ````markdown
+Drives GitLab merge requests through the GitLab CLI, `glab`.
+
 ## create
 
 Open the merge request ready, never as a draft, so leave out `--draft`. For a stack child, pass the parent branch as the target.

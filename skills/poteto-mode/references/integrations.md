@@ -33,9 +33,9 @@ A playbook that waits for a terminal state picks one form by what the recipe's `
 
 - A command that blocks until a terminal state. Run it as a `bg_run` command, so its exit wakes the session. Without `bg_run`, run it inside an async subagent.
 - A watch only the agent can do, such as an MCP call. An async subagent polls it until a terminal state, and its completion wakes the session.
-- No `watch` section. A `bg_run` timer wakes the session, and each wake runs one `view` and one `checks`.
+- No `watch` section. A `bg_run` timer wakes the session, and each wake runs one `view`, one `checks`, and one `threads`.
 
-When `ci` is bound apart from the forge, wait on it the same way, by the `ci` recipe's `watch` or by the timer form with its `checks`. A terminal forge state is not final while that CI still runs.
+When `ci` is bound apart from the forge, a terminal forge state is not final while that CI still runs. Wait on one at a time. When the forge's wait ends and the `ci` recipe's `checks` still show runs in progress, wait on the CI by its `watch`, or by the timer form with only its `checks`, then read the forge state again.
 
 The watch's exit or the timer drives every wake. Never add a second sleep loop. Rearm after every push wave and every verdict you act on.
 
@@ -58,4 +58,4 @@ Bitbucket Data Center at bb.corp.example. MCP server `bitbucket`. Project PLAT.
 none
 ```
 
-A tool the package has no recipe for gets `recipes/<name>.md` in the same layer, with one `## <operation>` section for each operation the playbooks name. Its first line names the tool it drives, such as the CLI or the MCP server. Draft it per step 13.3 of the **setup-pstack** skill (`<poteto-mode dir>/../setup-pstack/SKILL.md`) before you write the binding that names it. The package ships `github-gh` and `origin` for the forge. For the evidence keys (`tracker`, `docs`, `chat`, `observability`, `errors`, and `analytics`), a recipe is one investigator playbook in the shape of the **why** skill's source playbooks, not a set of operation sections, and those playbooks resolve by name after the package's recipes, as in `recipe: linear`. A recipe can drive a CLI, an MCP tool call, an HTTP API, or the project's own script. Both files hold names and commands only. Auth stays in the tool's own config. Rerun the script after writing and check that the key resolves to `bound`.
+A tool the package has no recipe for gets `recipes/<name>.md` in the same layer, with one `## <operation>` section for each operation the playbooks name. Its first line names the tool it drives, such as the CLI or the MCP server. Draft it per step 13.3 of the **setup-pstack** skill (`<poteto-mode dir>/../setup-pstack/SKILL.md`) before you write the binding that names it. The package ships `github-gh` and `origin` for the forge. For the evidence keys (`tracker`, `docs`, `chat`, `observability`, `errors`, and `analytics`), a recipe is one investigator playbook in the shape of the **why** skill's source playbooks, not a set of operation sections, and the binding's notes name the tool it uses. Those playbooks resolve by name after the package's recipes, as in `recipe: linear`. A recipe can drive a CLI, an MCP tool call, an HTTP API, or the project's own script. Both files hold names and commands only. Auth stays in the tool's own config. Rerun the script after writing and check that the key resolves to `bound`.
