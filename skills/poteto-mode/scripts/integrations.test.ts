@@ -30,11 +30,13 @@ function repo(dir: string, remote?: string) {
 	return dir;
 }
 
-// A stub `ssh -G <host>`: two aliases point at GitHub, every other host maps to itself.
+// A stub `ssh -G [user@]<host>`: two aliases point at GitHub, forge-ctx too except for the user git,
+// as a `Match originalhost forge-ctx user git` block would, and every other host maps to itself.
 const bin = join(home, "bin");
 write(
 	join(bin, "ssh"),
-	'#!/bin/sh\ncase $2 in github-work) echo "hostname github.com" ;; gh443) echo "hostname ssh.github.com" ;; *) echo "hostname $2" ;; esac\n',
+	'#!/bin/sh\n[ "$2" = git@forge-ctx ] && { echo "hostname bitbucket.example"; exit; }\n' +
+		'case ${2##*@} in github-work | forge-ctx) echo "hostname github.com" ;; gh443) echo "hostname ssh.github.com" ;; *) echo "hostname ${2##*@}" ;; esac\n',
 );
 chmodSync(join(bin, "ssh"), 0o755);
 
@@ -96,6 +98,7 @@ test("a github.com remote, https or ssh, or an ssh alias for GitHub gives the pa
 		"ssh://git@github.com/o/r.git",
 		"git@github-work:o/r.git",
 		"ssh://git@gh443:443/o/r.git",
+		"me@forge-ctx:o/r.git",
 	]) {
 		const r = repo(join(home, "gh", remote.replace(/\W/g, "")), remote);
 		expect(block(run(r).stdout, "forge")).toBe(
@@ -117,6 +120,8 @@ test("a non-GitHub remote, a non-GitHub ssh alias, a lookalike host, or no remot
 		"https://evil.example?@github.com/o/r",
 		"https://evil.example#@github.com/o/r",
 		"ssh://git@evil.example?@github.com/o/r",
+		"git@forge-ctx:o/r.git",
+		"ssh://git@forge-ctx:22/o/r.git",
 		undefined,
 	]) {
 		const r = repo(join(home, "nogh", (remote ?? "none").replace(/\W/g, "")), remote);
