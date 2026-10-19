@@ -22,7 +22,7 @@ For each candidate, find the first entry with `message.role` `user`. Take the fi
 
 ## 2. Spawn three reviewers in parallel
 
-One message, three separate `subagent` calls (not a workflow), `agent: "general-purpose"`, `async: true`. Reviewers need MCP access to look up the tickets, chat threads, and observability traces the transcript references, and `general-purpose-readonly` has no MCP tools.
+One message, three separate `subagent` calls (not a workflow), `agent: "general-purpose"`, `async: true`. Reviewers need MCP access to look up the tickets, chat threads, and observability traces the transcript references, and `general-purpose-readonly` has no MCP tools. Tell each reviewer to resolve the key for each source it looks up, such as `tracker`, `chat`, or `observability`, per `../poteto-mode/references/integrations.md`, and to use only the tool that key names.
 
 Each reviewer and the synthesizer name a role line in `pstack/models.md` in the Pi agent directory (`$PI_CODING_AGENT_DIR`, else `~/.pi/agent`). Set `model` to that line's value. Omit `model` when the file or the line is missing or the value is `inherit-parent`, so the subagent runs on the parent model. If `subagent` rejects a model, run that subagent on the parent model and say so. Pick each subagent's reasoning level for the job, per the Subagents section of the **poteto-mode** skill.
 
@@ -36,7 +36,7 @@ Pass each template verbatim, substituting the transcript path or digest where ma
 
 ## 3. Synthesize
 
-Once all three reviewers have reported, one `subagent` call, `agent: "general-purpose"`, `model` from the `reflect judgment, divergent, synthesizer` line. It spot-verifies citations through MCP, which `general-purpose-readonly` lacks. Pass `references/synthesizer.md` verbatim, with each reviewer's full output inlined where marked. It returns an Accepted / Rejected / Backlog list.
+Once all three reviewers have reported, one `subagent` call, `agent: "general-purpose"`, `model` from the `reflect judgment, divergent, synthesizer` line. It spot-verifies citations through MCP, which `general-purpose-readonly` lacks, under the same rule as the reviewers. Pass `references/synthesizer.md` verbatim, with each reviewer's full output inlined where marked. It returns an Accepted / Rejected / Backlog list.
 
 ## 4. Structural enforcement check
 
