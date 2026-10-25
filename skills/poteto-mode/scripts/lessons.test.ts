@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { afterAll, expect, test } from "bun:test";
-import { LESSONS_RUN } from "../../../extensions/lessons-compaction.ts";
+import { LESSON_HEADER, LESSONS_RUN } from "../../../extensions/lessons-compaction.ts";
 
 const script = join(import.meta.dir, "lessons.sh");
 const home = realpathSync(mkdtempSync(join(tmpdir(), "lessons-home-")));
@@ -53,6 +53,13 @@ test("every layer up to home is read, nearer layers last, and the nearest is the
 test("the compaction extension recognizes the output as a run, and not the script's own source", () => {
 	expect(run(join(home, "ws/repo/sub")).stdout).toMatch(LESSONS_RUN);
 	expect(readFileSync(script, "utf8")).not.toMatch(LESSONS_RUN);
+});
+
+test("the compaction extension tells a run that printed lessons from one that printed none", () => {
+	expect(run(join(home, "ws/repo/sub")).stdout).toMatch(LESSON_HEADER);
+	const none = run(outside, [], join(outside, "agent")).stdout;
+	expect(none).toMatch(LESSONS_RUN);
+	expect(none).not.toMatch(LESSON_HEADER);
 });
 
 test("with no layer above, a repo's write target is its main checkout", () => {

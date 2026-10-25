@@ -46,11 +46,11 @@ Reference for humans syncing upstream. Agents never read this file.
 | `gh` by default, Origin when its CLI resolves the repository | integrations; `integrations.sh` resolves the forge and playbooks run each operation from its recipe. The package ships the `github-gh` and `origin` recipes, with `github-gh` as the default for a github.com remote |
 | built-in PR tool | removed; a PR tool from an MCP server or an extension is used only when the forge recipe names it |
 | the project's choice of tools (upstream names its tools in the skill text) | `.pi/pstack/integrations/` (`bindings.md` and `recipes/`) in the project or a parent folder, or `~/.pi/agent/pstack/integrations/`, excluded from git like lessons (**Integrations** in poteto-mode) |
-| edits to pstack's own skills (`reflect`, Bugbot learnings in Babysit, a broken skill mid-task) | lesson files that mirror the package path, in the project's `.pi/pstack/lessons/` or `pstack/lessons/` in the Pi agent directory (**Lessons** in poteto-mode); the package is never edited. Upstream has no compaction to survive; here `extensions/lessons-compaction.ts` re-adds the output of the last `lessons.sh` run after a compaction, unless the script ran again since |
+| edits to pstack's own skills (`reflect`, Bugbot learnings in Babysit, a broken skill mid-task) | lesson files that mirror the package path, in the project's `.pi/pstack/lessons/` or `pstack/lessons/` in the Pi agent directory (**Lessons** in poteto-mode); the package is never edited. Upstream has no compaction to survive; here `extensions/lessons-compaction.ts` re-adds the output of the last `lessons.sh` run after a compaction, when that run printed lessons and the script has not run again since |
 
 ## Tests
 
 `extensions/lessons-compaction.test.ts` runs against the Pi pinned in the root `package.json`
 `devDependencies`, not the Pi you have installed. On a fresh clone, run `bun install` in the root and in
 `skills/poteto-mode/scripts`, then `bun test` in the root. When Pi updates, bump that pin to the new version
-and run `bun install`. Until then the test that compares the pin with the installed Pi fails.
+and run `bun install`. Until then the tests that compare the pin with the installed Pi and with `node_modules` fail.
