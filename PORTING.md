@@ -47,3 +47,9 @@ Reference for humans syncing upstream. Agents never read this file.
 | built-in PR tool | removed; a PR tool from an MCP server or an extension is used only when the forge recipe names it |
 | the project's choice of tools (upstream names its tools in the skill text) | `.pi/pstack/integrations/` (`bindings.md` and `recipes/`) in the project or a parent folder, or `~/.pi/agent/pstack/integrations/`, excluded from git like lessons (**Integrations** in poteto-mode) |
 | edits to pstack's own skills (`reflect`, Bugbot learnings in Babysit, a broken skill mid-task) | lesson files that mirror the package path, in the project's `.pi/pstack/lessons/` or `pstack/lessons/` in the Pi agent directory (**Lessons** in poteto-mode); the package is never edited. Upstream has no compaction to survive; here `extensions/lessons-compaction.ts` re-adds the output of the last `lessons.sh` run after a compaction, unless the script ran again since |
+
+## Tests
+
+`extensions/lessons-compaction.test.ts` runs against the Pi pinned in the root `package.json`
+`devDependencies`, not the Pi you have installed. Run `bun install` in the root once, then `bun test`.
+When Pi updates, bump that pin to the new version and rerun the tests, or they keep checking the old behavior.
