@@ -1,16 +1,20 @@
-import { existsSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { expect, test } from "bun:test";
+import { afterAll, expect, test } from "bun:test";
+import { getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
 import { fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai/providers/faux";
 import {
 	createAgentSession, DefaultResourceLoader, discoverAndLoadExtensions, ExtensionRunner, ModelRuntime, SessionManager, SettingsManager,
 } from "@earendil-works/pi-coding-agent";
+import { removeNativeCompactionRetainedMessages, rewriteResponsesPayloadWithNativeReplay } from "pi-openai-toolkit/src/payload-rewrite.ts";
+import { serializeMessagesToResponsesInput } from "pi-openai-toolkit/src/serializer.ts";
 import { LESSONS_TYPE, SKILLS_DIR } from "./lessons-compaction.ts";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const scratch = realpathSync(mkdtempSync(join(tmpdir(), "lessons-compaction-")));
+afterAll(() => rmSync(scratch, { recursive: true, force: true }));
 const loaded = await discoverAndLoadExtensions([root], scratch, scratch);
 
 const emptyOutput = "user layer: /agent/pstack/lessons\nproject write target: none\n" +
@@ -65,7 +69,7 @@ test.skipIf(!existsSync(installed))("the Pi these tests pin is the Pi installed 
 });
 
 test("the tests import the pinned Pi", () => {
-	for (const [name, pinned] of Object.entries(pins)) {
+	for (const [name, pinned] of Object.entries(pins).filter(([name]) => name.startsWith("@earendil-works/"))) {
 		const imported = JSON.parse(readFileSync(join(root, "node_modules", name, "package.json"), "utf8")).version;
 		if (imported !== pinned) throw new Error(`node_modules has ${name} ${imported} but package.json pins ${pinned}: run bun install`);
 	}
@@ -185,15 +189,50 @@ test("in a session, a custom message an earlier handler wraps still comes after 
 	expect(context[3][1]).toBe("<pi_subagents_notice>Continue</pi_subagents_notice>");
 });
 
-test("in a session, a tool result an earlier handler trims is not split from its call by the notice", async () => {
+test("in a session, tool results an earlier handler trims are not split from their calls by the notice", async () => {
 	const h = fixture();
-	h.manager.appendCompaction("Compacted", h.runLessons().call, 1000);
+	const calls = [["c1", "bash", lessonsOutput("PROBE-BODY")], ["c2", "read", "file one"], ["c3", "read", "file two"]];
+	const batch = h.manager.appendMessage({ role: "assistant", timestamp: 20,
+		content: calls.map(([id, name]) => ({ type: "toolCall", id, name, arguments: {} })) } as never);
+	for (const [id, name, text] of calls) {
+		h.manager.appendMessage({ role: "toolResult", toolName: name, toolCallId: id, isError: false,
+			content: [{ type: "text", text }], timestamp: 21 } as never);
+	}
+	h.manager.appendCompaction("Compacted", batch, 1000);
+	// Pruners clear output that can be read again and keep the rest.
 	const trim = `export default (pi) => pi.on("context", (event) => ({ messages: event.messages.map((m) =>
-		m.role === "toolResult" ? { ...m, content: [{ type: "text", text: "[trimmed]" }] } : m) }));`;
+		m.role === "toolResult" && m.toolName === "read" ? { ...m, content: [{ type: "text", text: "[trimmed]" }] } : m) }));`;
 	const context = await providerContext(h.manager, trim, "goal_continuation");
-	expect(context.map(([role]) => role)).toEqual(["system", "user", "assistant", "toolResult", "notice", "user"]);
-	expect(context[3][1]).toBe("[trimmed]");
-	expect(context[4][1]).toContain("PROBE-BODY");
+	expect(context.map(([role]) => role))
+		.toEqual(["system", "user", "assistant", "toolResult", "toolResult", "toolResult", "notice", "user"]);
+	expect(context.slice(4, 6).map(([, text]) => text)).toEqual(["[trimmed]", "[trimmed]"]);
+	expect(context[6][1]).toContain("PROBE-BODY");
+});
+
+test("Codex native replay drops the retained tail but keeps one copy of the lessons, after the checkpoint", async () => {
+	const h = fixture();
+	const details = { strategy: "openai-remote-compaction-v2", inputProvenance: "legacy-raw-context-v1", provider: "openai-codex",
+		api: "openai-codex-responses", model: "gpt-6.1-sol", baseUrl: "https://chatgpt.com/backend-api", createdAt: new Date(0).toISOString(),
+		compactedWindow: [{ type: "compaction", encrypted_content: "OPAQUE-CHECKPOINT" }] };
+	h.manager.appendCompaction("Native checkpoint summary", h.runLessons("RETAINED-BODY").call, 1000, details);
+	h.user("CONTINUE-MARK");
+	const branchEntries = h.manager.getBranch();
+	const compactionEntry = branchEntries.find((entry) => entry.type === "compaction")!;
+	const replayed = { branchEntries, compactionEntry, expectedInputProvenance: "legacy-raw-context-v1" } as const;
+	const trimmed = removeNativeCompactionRetainedMessages({ messages: await h.project(), ...replayed } as never);
+	if (!trimmed.ok) throw new Error(trimmed.reason);
+	expect(roles(trimmed.messages)).toEqual(["compactionSummary", "notice", "user"]);
+	const model = getBuiltinModel("openai-codex", "gpt-6.1-sol") as never;
+	const rewritten = rewriteResponsesPayloadWithNativeReplay({ model,
+		payload: { input: serializeMessagesToResponsesInput(model, trimmed.messages as never) }, ...replayed } as never);
+	if (!rewritten.ok) throw new Error(rewritten.reason);
+	const payload = JSON.stringify(rewritten.rewrittenPayload.input);
+	const at = (text: string) => payload.indexOf(text);
+	expect(at("OPAQUE-CHECKPOINT")).toBeGreaterThan(-1);
+	expect(at("OPAQUE-CHECKPOINT")).toBeLessThan(at("Context-maintenance notice"));
+	expect(at("Context-maintenance notice")).toBeLessThan(at("CONTINUE-MARK"));
+	expect(payload.split("RETAINED-BODY")).toHaveLength(2);
+	expect(at("Native checkpoint summary")).toBe(-1);
 });
 
 test("new work another hook rewrote does not move the notice; with nothing kept recognizable it goes last", async () => {

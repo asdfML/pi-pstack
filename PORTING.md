@@ -54,3 +54,4 @@ Reference for humans syncing upstream. Agents never read this file.
 `devDependencies`, not the Pi you have installed. On a fresh clone, run `bun install` in the root and in
 `skills/poteto-mode/scripts`, then `bun test` in the root. When Pi updates, bump that pin to the new version
 and run `bun install`. Until then the tests that compare the pin with the installed Pi and with `node_modules` fail.
+The Codex replay test runs the pinned `pi-openai-toolkit`, the toolkit the Codex native compaction strategy uses.

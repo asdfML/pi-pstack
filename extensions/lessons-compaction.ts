@@ -42,8 +42,8 @@ export default function lessonsCompaction(pi: ExtensionAPI) {
 			.flatMap((entry) => entry.messages)
 			.map((message) => JSON.stringify(message)));
 		const lastKept = event.messages.findLastIndex((message) => kept.has(JSON.stringify(message)));
-		// After the retained tail, so on every strategy this copy is the latest one the model reads.
-		// With no kept message found, the end is still after the tail.
+		// After the retained tail, so this copy follows any copy the tail still holds. If an earlier handler rewrote
+		// the tail's last messages, the notice lands before them. With no kept message found, it goes last.
 		let insertAt = lastKept < 0 ? event.messages.length : lastKept + 1;
 		// Never between a tool call and its results. A rewritten result no longer matches, so the anchor
 		// can be the assistant message that made the call.
