@@ -24,3 +24,9 @@ pi install git:github.com/asdfML/pi-pstack
 ```
 
 Then run `/skill:setup-pstack` in Pi. The [guide](docs/guide/README.md) walks through the rest.
+
+pi-pstack re-adds your lessons after a context compaction through `extensions/lessons-compaction.ts`.
+pi-subagents loads it in background children only. The agents that write code for pstack (`poteto-agent`,
+`general-purpose`) run in the background, and read-only reviewers never run `lessons.sh`. To cover
+foreground children too, add that file's absolute path (`pi list` shows where the package is) to
+`subagents.defaultSubagentOnlyExtensions` in `~/.pi/agent/settings.json`.

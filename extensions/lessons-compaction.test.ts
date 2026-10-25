@@ -1,25 +1,30 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, realpathSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { expect, test } from "bun:test";
-import { ExtensionRunner, SessionManager } from "@earendil-works/pi-coding-agent";
-import register, { LESSONS_TYPE, SKILLS_DIR } from "./lessons-compaction.ts";
+import { discoverAndLoadExtensions, ExtensionRunner, SessionManager } from "@earendil-works/pi-coding-agent";
+import { LESSONS_TYPE, SKILLS_DIR } from "./lessons-compaction.ts";
+
+const root = fileURLToPath(new URL("..", import.meta.url));
+const scratch = realpathSync(mkdtempSync(join(tmpdir(), "lessons-compaction-")));
+const loaded = await discoverAndLoadExtensions([root], scratch, scratch);
 
 const lessonsOutput = (body: string) => "user layer: /agent/pstack/lessons\nproject write target: none\n" +
 	"Lessons follow in rising priority: a later lesson wins over an earlier one for the same file.\n\n" +
 	`== lesson for arena/SKILL.md from /agent/pstack/lessons\n## Probe lesson\n\n${body}\n`;
 
 function fixture() {
-	const manager = SessionManager.inMemory("/project");
+	const manager = SessionManager.inMemory(scratch);
 	const userId = manager.appendMessage({ role: "user", content: "Start", timestamp: 1 });
-	const handlers = new Map<string, Function[]>();
-	register({ on(name: string, fn: Function) {
-		handlers.set(name, [...(handlers.get(name) ?? []), fn]);
-		return () => {};
-	} } as never);
-	const runner = new ExtensionRunner([{ path: "lessons-compaction", handlers }] as never, {} as never, "/project", manager, {} as never);
-	runner.createContext = () => ({ cwd: "/project", sessionManager: manager }) as never;
-	runner.emitError = (event: unknown) => { throw new Error(JSON.stringify(event)); };
-	const project = () => runner.emitContext(manager.buildSessionContext().messages);
+	const runner = new ExtensionRunner(loaded.extensions, loaded.runtime, scratch, manager, undefined as never);
+	const errors: unknown[] = [];
+	runner.onError((error) => errors.push(error));
+	const project = async (messages: any[] = manager.buildSessionContext().messages) => {
+		const projected: any[] = await runner.emitContext(messages);
+		expect(errors).toEqual([]);
+		return projected;
+	};
 	let calls = 0;
 	const tool = (name: string, text: string, isError = false) => {
 		const id = `call-${++calls}`;
@@ -36,6 +41,22 @@ function fixture() {
 const isNotice = (m: any) => m.role === "custom" && m.customType === LESSONS_TYPE;
 const notices = (messages: any[]) => messages.filter(isNotice);
 const roles = (messages: any[]) => messages.map((m) => (isNotice(m) ? "notice" : m.role));
+
+test("the package manifest loads this extension through Pi's loader", () => {
+	expect(loaded.errors).toEqual([]);
+	expect(loaded.extensions.map((extension) => extension.path)).toEqual([join(root, "extensions/lessons-compaction.ts")]);
+	expect(loaded.extensions[0].handlers.has("context")).toBe(true);
+});
+
+const installed = join(process.env.PI_MANAGED_INSTALL_ROOT
+	?? join(process.env.PI_CODING_AGENT_DIR ?? join(homedir(), ".pi/agent"), "install"), "current-version");
+test.skipIf(!existsSync(installed))("the Pi these tests pin is the Pi installed here", () => {
+	const pinned = JSON.parse(readFileSync(join(root, "package.json"), "utf8")).devDependencies["@earendil-works/pi-coding-agent"];
+	const current = readFileSync(installed, "utf8").trim();
+	if (current !== pinned) {
+		throw new Error(`Pi ${current} is installed but the tests pin ${pinned}: bump it in package.json devDependencies and run bun install`);
+	}
+});
 
 test("plain session without lessons.sh gets nothing, before or after compaction", async () => {
 	const h = fixture();
@@ -91,6 +112,30 @@ test("a run kept in the retained tail still gets the notice, placed after that t
 	expect(roles(await h.project())).toEqual(["compactionSummary", "assistant", "toolResult", "notice", "user"]);
 });
 
+test("a custom message that starts the run keeps its in-memory timestamp, and the notice still lands after the tail", async () => {
+	for (const keepTail of [false, true]) {
+		const h = fixture();
+		const { call } = h.runLessons();
+		h.manager.appendCompaction("Compacted", keepTail ? call : null, 1000);
+		h.manager.appendCustomMessageEntry("goal_continuation", "Continue the goal", false);
+		const messages = h.manager.buildSessionContext().messages;
+		messages[messages.length - 1] = { ...messages[messages.length - 1], timestamp: 3 };
+		const tail = keepTail ? ["assistant", "toolResult"] : [];
+		expect(roles(await h.project(messages))).toEqual(["compactionSummary", ...tail, "notice", "custom"]);
+	}
+});
+
+test("new work another hook rewrote does not move the notice; with nothing kept recognizable it goes last", async () => {
+	const h = fixture();
+	const { call } = h.runLessons();
+	h.manager.appendCompaction("Compacted", call, 1000);
+	h.user("Continue");
+	const rewritten = h.manager.buildSessionContext().messages.map((m: any) => (m.role === "user" ? { ...m, content: "Rewritten" } : m));
+	expect(roles(await h.project(rewritten))).toEqual(["compactionSummary", "assistant", "toolResult", "notice", "user"]);
+	const unrecognizable = h.manager.buildSessionContext().messages.map((m: any) => ({ ...m, timestamp: 0 }));
+	expect(roles(await h.project(unrecognizable))).toEqual(["compactionSummary", "assistant", "toolResult", "user", "notice"]);
+});
+
 test("reading files that quote the header is not a run, before or after the checkpoint", async () => {
 	const sources = [`${SKILLS_DIR}/poteto-mode/scripts/lessons.sh`,
 		new URL("./lessons-compaction.ts", import.meta.url), new URL("./lessons-compaction.test.ts", import.meta.url)]
@@ -138,13 +183,30 @@ test("a rerun that context_edit omitted is not live; an omitted run never comes 
 	expect(notices(await omittedOnly.project())).toHaveLength(0);
 });
 
+test("a run context_edit rewrote is skipped for an earlier intact one; with every run rewritten nothing comes back", async () => {
+	const h = fixture();
+	h.runLessons("FIRST-BODY");
+	const { result } = h.runLessons("SECOND-BODY");
+	h.manager.appendContextEdit(result, { content: "trimmed" });
+	h.manager.appendCompaction("Compacted", null, 1000);
+	const [notice] = notices(await h.project());
+	expect(notice.content).toContain("FIRST-BODY");
+	expect(notice.content).not.toContain("SECOND-BODY");
+
+	const all = fixture();
+	all.manager.appendContextEdit(all.runLessons("FIRST-BODY").result, { content: "trimmed" });
+	all.manager.appendContextEdit(all.runLessons("SECOND-BODY").result, { content: "trimmed" });
+	all.manager.appendCompaction("Compacted", null, 1000);
+	expect(notices(await all.project())).toHaveLength(0);
+});
+
 test("a new checkpoint gets one notice after its own summary; branch rollback removes it", async () => {
 	const h = fixture();
 	h.runLessons();
 	h.manager.appendCompaction("First", null, 1000);
 	h.user("Continue");
 	h.manager.appendCompaction("Second", null, 1000);
-	const projected: any[] = await h.project();
+	const projected = await h.project();
 	expect(roles(projected)).toEqual(["compactionSummary", "notice"]);
 	expect(projected[0].summary).toBe("Second");
 	h.manager.branch(h.userId);

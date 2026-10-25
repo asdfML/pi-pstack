@@ -1,11 +1,13 @@
 import { fileURLToPath } from "node:url";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, SessionEntry, SessionMessageEntry } from "@earendil-works/pi-coding-agent";
 
 export const LESSONS_TYPE = "pstack_lessons";
 // The header line lessons.sh prints. Anchored to a line start, so source code that quotes it is not a run.
 export const LESSONS_RUN = /^Lessons follow in rising priority/m;
 export const SKILLS_DIR = fileURLToPath(new URL("../skills", import.meta.url));
 const SCRIPT = `${SKILLS_DIR}/poteto-mode/scripts/lessons.sh`;
+
+type ToolResultEntry = SessionMessageEntry & { message: Extract<SessionMessageEntry["message"], { role: "toolResult" }> };
 
 function textOf(content: unknown): string {
 	if (typeof content === "string") return content;
@@ -20,25 +22,26 @@ export default function lessonsCompaction(pi: ExtensionAPI) {
 		if (checkpoint?.type !== "compaction") return;
 		// Output a context_edit omitted or rewrote is not live and must not come back through this notice.
 		const edited = new Set(branch.flatMap((entry) => (entry.type === "context_edit" ? [entry.targetId] : [])));
-		const lessonsAt = branch.findLastIndex((entry) =>
+		const isRun = (entry: SessionEntry): entry is ToolResultEntry =>
 			entry.type === "message" && entry.message.role === "toolResult" && !edited.has(entry.id)
-			&& LESSONS_RUN.test(textOf(entry.message.content)));
-		// A rerun after the checkpoint is already live. One in the retained tail is not: Codex native
-		// replay replaces that tail with its opaque window.
-		if (lessonsAt < 0 || lessonsAt > checkpointAt) return;
-		const run = branch[lessonsAt];
-		if (run.type !== "message" || run.message.role !== "toolResult") return;
+			&& LESSONS_RUN.test(textOf(entry.message.content));
+		if (branch.slice(checkpointAt + 1).some(isRun)) return;
+		// A run kept in the retained tail still counts as gone: Codex native replay replaces that tail.
+		const run = branch.slice(0, checkpointAt).findLast(isRun);
+		if (!run) return;
 
+		// The summary and retained tail reach this hook as projection copies, so they match byte for byte.
+		// New messages may not: a custom message that starts a run carries an in-memory timestamp.
 		const postIds = new Set(branch.slice(checkpointAt + 1).map((entry) => entry.id));
-		const post = new Set(ctx.sessionManager.buildSessionProjection().entries
-			.filter((entry) => postIds.has(entry.sourceEntry.id))
+		const kept = new Set(ctx.sessionManager.buildSessionProjection().entries
+			.filter((entry) => !postIds.has(entry.sourceEntry.id))
 			.flatMap((entry) => entry.messages)
 			.filter((message) => message.role !== "system")
 			.map((message) => JSON.stringify(message)));
+		const lastKept = event.messages.findLastIndex((message) => kept.has(JSON.stringify(message)));
 		// After the retained tail, so on every strategy this copy is the latest one the model reads.
-		const insertAt = post.size === 0 ? event.messages.length
-			: event.messages.findIndex((message) => post.has(JSON.stringify(message)));
-		if (insertAt < 0) return;
+		// With no kept message found, the end is still after the tail.
+		const insertAt = lastKept < 0 ? event.messages.length : lastKept + 1;
 
 		event.messages.splice(insertAt, 0, {
 			role: "custom",

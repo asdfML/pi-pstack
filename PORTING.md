@@ -51,5 +51,6 @@ Reference for humans syncing upstream. Agents never read this file.
 ## Tests
 
 `extensions/lessons-compaction.test.ts` runs against the Pi pinned in the root `package.json`
-`devDependencies`, not the Pi you have installed. Run `bun install` in the root once, then `bun test`.
-When Pi updates, bump that pin to the new version and rerun the tests, or they keep checking the old behavior.
+`devDependencies`, not the Pi you have installed. On a fresh clone, run `bun install` in the root and in
+`skills/poteto-mode/scripts`, then `bun test` in the root. When Pi updates, bump that pin to the new version
+and run `bun install`. Until then the test that compares the pin with the installed Pi fails.
