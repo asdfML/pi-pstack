@@ -22,5 +22,8 @@
   "author": "Pavel Boldyrev",
   "contributors": [
     "Lauren Tan (original pstack author)"
-  ]
+  ],
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "1.4.0"
+  }
 }

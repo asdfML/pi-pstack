@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { afterAll, expect, test } from "bun:test";
+import { LESSONS_RUN } from "../../../extensions/lessons-compaction.ts";
 
 const script = join(import.meta.dir, "lessons.sh");
 const home = realpathSync(mkdtempSync(join(tmpdir(), "lessons-home-")));
@@ -47,6 +48,11 @@ test("every layer up to home is read, nearer layers last, and the nearest is the
 	expect(workspace).toBeGreaterThan(user);
 	expect(repo).toBeGreaterThan(workspace);
 	expect(out).not.toContain("home lesson");
+});
+
+test("the compaction extension recognizes the output as a run, and not the script's own source", () => {
+	expect(run(join(home, "ws/repo/sub")).stdout).toMatch(LESSONS_RUN);
+	expect(readFileSync(script, "utf8")).not.toMatch(LESSONS_RUN);
 });
 
 test("with no layer above, a repo's write target is its main checkout", () => {
@@ -106,7 +112,9 @@ test("--create fails loudly when it cannot create the layer", () => {
 	const locked = join(home, "locked");
 	mkdirSync(locked);
 	chmodSync(locked, 0o555);
-	expect(run(locked, ["--create"]).status).not.toBe(0);
+	const failed = run(locked, ["--create"]);
+	expect(failed.status).not.toBe(0);
+	expect(failed.stdout).toMatch(LESSONS_RUN);
 });
 
 test("from a linked worktree, the write target is the main checkout, excluded there", () => {
