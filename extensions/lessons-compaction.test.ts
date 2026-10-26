@@ -352,6 +352,17 @@ test("a run the bash tool cut to its tail still counts", async () => {
 	alone.manager.appendCompaction("Compacted", null, 1000);
 	expect(notices(await alone.project())[0].content).toContain("SINGLE-LESSON");
 
+	// A cut run has lost its first lines, so lines that match them in a session from before lessons.sh indented
+	// quotes are a lesson's quote, with or without a lesson header after it.
+	for (const quote of [head, `${head}\n== lesson for how/SKILL.md from /x\n`]) {
+		const legacy = fixture();
+		legacy.tool("bash", `REAL-BEFORE-QUOTE\n${quote}QUOTED-AFTER\n${end}`, false, { truncation: { truncated: true } });
+		legacy.manager.appendCompaction("Compacted", null, 1000);
+		const cutNotice = notices(await legacy.project())[0].content;
+		expect(cutNotice).toContain("REAL-BEFORE-QUOTE");
+		expect(cutNotice).toContain("The bash tool cut the start of this output");
+	}
+
 	// Sessions from before lessons.sh indented quotes hold such a cut with the quote at a line start.
 	const unindented = fixture();
 	const header = "```\nLessons follow in rising priority: x\n```\n";
@@ -398,29 +409,43 @@ test("output cut from the bottom is not a run, so it neither hides nor replaces 
 	}
 });
 
-test("output of commands chained before or after the run does not come back", async () => {
-	const h = fixture();
-	h.tool("bash", `STALE-BEFORE\nSTALE-NO-NEWLINE${(await bashLessons({ "how/SKILL.md": "CHAINED-LESSON\n" }, "; echo STALE-STATUS")).text}`);
-	h.manager.appendCompaction("Compacted", null, 1000);
-	const notice = notices(await h.project())[0].content;
-	expect(notice).toContain("CHAINED-LESSON");
-	expect(notice).toContain("user layer: ");
-	expect(notice).not.toContain("STALE-BEFORE");
-	expect(notice).not.toContain("STALE-NO-NEWLINE");
-	expect(notice).not.toContain("STALE-STATUS");
-	expect(notice).not.toContain("cut the start");
-});
 
-test("a command runs the script only when it is the script alone, with env assignments before it", () => {
-	const runs = [`sh ${script}`, ` sh  ${script}\n`, `PI_CODING_AGENT_DIR=/x sh ${script}`, `A=1 B=/y/z sh ${script}`, `X= sh ${script}`, script, `PI_CODING_AGENT_DIR=/x ${script}`];
+test("a command runs the script only when the script is all its call prints", () => {
+	const repo = join(SKILLS_DIR, "..");
+	const runs = [`sh ${script}`, ` sh  ${script}\n`, script, `sh '${script}'`, `sh "${script}"`, `sh ${script} 2>&1`,
+		`sh ${script} --create`, `cd /a && sh ${script} --create 2>&1`, `cd /a; ${script}`, `cd '/a b'&&sh ${script}`,
+		`cd ${repo} && sh skills/poteto-mode/scripts/lessons.sh`, `cd ${repo}/x && ../skills/poteto-mode/scripts/lessons.sh`,
+		`PI_CODING_AGENT_DIR=/x sh ${script}`, `PI_CODING_AGENT_DIR=/x ${script}`];
 	const others = [`sh ${script} && gh issue view 42`, `sh ${script} | head -n 20; cat report.md`, `sh ${script} > /dev/null`,
-		`cat issue.txt; sh ${script}`, `cd x && sh ${script}`, `sh ${script} 2>&1`, `sh ${script}\ncat r.md`, `X=1\nsh ${script}`,
-		`X=$(cat r.md) sh ${script}`, "X=`cat r.md` sh " + script, `X=1;cat r.md; sh ${script}`, `X='a b' sh ${script}`,
-		`X=a|cat sh ${script}`, `bash ${script}`, `sh ${script}x`, `sh x${script}`, `sh ${script.replace("lessons.sh", "lessons-sh")}`,
-		"X=`cp${IFS}r.md${IFS}/dev/stderr` sh " + script, `X=$HOME sh ${script}`, `X="a" sh ${script}`, `sh sh ${script}`, `${script} | head`, "sh lessons.sh", `cat ${script}`,
-		`sh /no/such/lessons.sh; cat report.md`, `{ sh ${script}; }`];
+		`cat issue.txt; sh ${script}`, `cd x && sh ${script}`, `cd - && sh ${script}`, `cd ~/x && sh ${script}`,
+		`cd /a && cd /b && sh ${script}`, `cd $(pwd) && sh ${script}`,
+		"cd \"/a$(cp${IFS}r.md${IFS}/dev/stderr)\" && sh " + script, "cd \"/a`cat${IFS}r.md>&2`\" && sh " + script, `cd /a; cat r.md; sh ${script}`, `cd /a && cat ${script}`,
+		`sh ${script} 2>&1 | head -50`, `sh ${script}; git status --short`, `sh ${script} --create --force`, `sh ${script} 2>/dev/null`,
+		`sh ${script}\ncat r.md`, `PATH=/evil sh ${script}`, `A=1 sh ${script}`, `PI_CODING_AGENT_DIR=$(cat r.md) sh ${script}`,
+		"PI_CODING_AGENT_DIR=`cp${IFS}r.md${IFS}/dev/stderr` sh " + script, `PI_CODING_AGENT_DIR=/x;cat r.md; sh ${script}`,
+		`sh "${script}$X"`, `bash ${script}`, `sh ${script}x`, `sh x${script}`, `sh ${script.replace("lessons.sh", "lessons-sh")}`,
+		`sh sh ${script}`, "sh lessons.sh", "sh skills/poteto-mode/scripts/lessons.sh", `cat ${script}`, `{ sh ${script}; }`,
+		`sh /no/such/lessons.sh; cat report.md`];
 	expect(runs.filter((command) => !runsScript(command))).toEqual([]);
 	expect(others.filter((command) => runsScript(command))).toEqual([]);
+});
+
+test("a run with --create, after a cd, is a run on both sides of the checkpoint", async () => {
+	const command = `cd /a && sh ${script} --create 2>&1`;
+	const before = fixture();
+	before.tool("bash", lessonsOutput("OLD-LESSON"));
+	before.tool("bash", `warning: nothing created, because x\n${lessonsOutput("NEW-LESSON")}`, false, undefined, command);
+	before.manager.appendCompaction("Compacted", null, 1000);
+	const notice = notices(await before.project())[0].content;
+	expect(notice).toContain("NEW-LESSON");
+	expect(notice).not.toContain("OLD-LESSON");
+	expect(notice).not.toContain("warning: nothing created");
+
+	const after = fixture();
+	after.tool("bash", lessonsOutput("OLD-LESSON"));
+	after.manager.appendCompaction("Compacted", null, 1000);
+	after.tool("bash", lessonsOutput("NEW-LESSON"), false, undefined, command);
+	expect(notices(await after.project())).toHaveLength(0);
 });
 
 test("output of a command chained after the run never passes for lessons, whole or cut to its tail", async () => {

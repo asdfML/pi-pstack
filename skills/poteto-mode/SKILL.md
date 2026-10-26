@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 Bundled skills live at `../<name>/SKILL.md` from this file, so put this file's absolute path in every `poteto-agent` prompt.
 
-Before your first step, run `sh <this file's directory>/scripts/lessons.sh` with the absolute path, from the starting directory, and apply the lessons it prints (**Lessons**).
+Before your first step, run `sh <this file's directory>/scripts/lessons.sh` with the absolute path, from the starting directory, in a bash call of its own with no `cd`, pipe, redirection, or other command, and apply all the lessons it prints (**Lessons**).
 
 ## Non-negotiables
 
@@ -111,7 +111,7 @@ Lessons amend pstack's own files from outside the package, so `pi update` keeps 
 - User layer: `pstack/lessons/` in the Pi agent directory (`$PI_CODING_AGENT_DIR`, else `~/.pi/agent`). Lessons that hold in every project.
 - Project layers: every `.pi/pstack/lessons/` at or above the starting directory, and from a linked worktree also at or above its main checkout, never in the home directory or above it. A layer the project's git tracks is skipped with a warning. A nearer one wins over a farther one. New lessons go to the nearest. If none exists, the main checkout gets one in `.pi/pstack/lessons/`, next to the store (see **Store**). A run started in the home directory has no project layer.
 
-**Read.** `scripts/lessons.sh` in this skill's directory, run by absolute path from the starting directory, prints the user layer, the project write target, and every lesson in rising priority, each headed by the file it amends and its layer. Run it once at the start and again after a lesson is written. Apply each lesson when you use the file it amends. A lesson adds to the file. On a conflict the later lesson in that output wins, and every lesson wins over the package.
+**Read.** `scripts/lessons.sh` in this skill's directory, run by absolute path from the starting directory in a bash call of its own, prints the user layer, the project write target, and every lesson in rising priority, each headed by the file it amends and its layer. Run it once at the start and again after a lesson is written. Apply each lesson when you use the file it amends. A lesson adds to the file. On a conflict the later lesson in that output wins, and every lesson wins over the package.
 
 **Write.** Never edit a file in the package. Before writing to the project layer, run `scripts/lessons.sh --create`. It creates the write target if needed and, inside a git repository, adds its `.pi/pstack/` to `.git/info/exclude`, so the repository shows no change. Write to the write target it prints. When it prints `none`, write no project lesson and say why in your reply. A lesson that names anything specific to this project (its paths, tools, CI, team, review bots, or code) goes to the project layer. A lesson that would read the same in any project goes to the user layer. When unsure, use the project layer. Which tool the project uses for a capability is a binding (**Integrations**), not a lesson. Name each lesson file you wrote in your reply. Skills the project owns, such as `.agents/skills/` and verification skills, are edited in place, not through lessons.
 

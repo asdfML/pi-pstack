@@ -142,9 +142,12 @@ lines) to port instead.
   poteto-mode). Unchecked: how well agents follow lessons that conflict with the package text.
 
 - **Lessons and context compaction.** `extensions/lessons-compaction.ts` repeats the output of the
-  last `sh <path>/lessons.sh` run after a compaction drops it. It counts only a command that is
-  the script alone, so a rerun written any other way does not stop the older lessons from coming
-  back. Unchecked since the notice changed: a live run in which the model applies lessons from it.
+  last `sh <path>/lessons.sh` run after a compaction drops it. It counts only a call that prints
+  nothing but the script's output: the script by `sh` or by its path, optionally after a `cd` to an
+  absolute path and with `--create` or `2>&1`. A session whose runs all take another form, such
+  as `| head` or a chained command, gets no notice, and a rerun in another form does not stop the
+  older lessons from coming back. The skill asks for the script in a call of its own. Unchecked
+  since the notice changed: a live run in which the model applies lessons from it.
 
 - **Package dependencies.** Pi packages cannot declare other Pi packages as dependencies;
   `dependencies` in `package.json` only covers npm modules imported by extensions. Required:

@@ -115,7 +115,7 @@ pstack keeps the user's amendments to its skills as lessons outside the package,
 <!-- pstack-lessons:start -->
 ## pstack lessons
 
-Before you follow a skill from `<absolute path>/`, a skill invoked with `/skill:` included, run `<absolute path>/poteto-mode/scripts/lessons.sh` from the working directory once per session and apply the lessons it prints for the files you use. A lesson adds to the file. On a conflict the later lesson in the script's output wins, and every lesson wins over the file. Write lessons per the Lessons section of `<absolute path>/poteto-mode/SKILL.md`, never into the package.
+Before you follow a skill from `<absolute path>/`, a skill invoked with `/skill:` included, run `sh <absolute path>/poteto-mode/scripts/lessons.sh` from the working directory once per session, in a bash call of its own with no `cd`, pipe, redirection, or other command, and apply all the lessons it prints for the files you use. A lesson adds to the file. On a conflict the later lesson in the script's output wins, and every lesson wins over the file. Write lessons per the Lessons section of `<absolute path>/poteto-mode/SKILL.md`, never into the package.
 <!-- pstack-lessons:end -->
 ```
 

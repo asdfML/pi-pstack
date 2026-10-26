@@ -1,25 +1,37 @@
+import { isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { ExtensionAPI, SessionEntry, SessionMessageEntry } from "@earendil-works/pi-coding-agent";
+import type { BashToolDetails, ExtensionAPI, SessionEntry, SessionMessageEntry } from "@earendil-works/pi-coding-agent";
 
 export const LESSONS_TYPE = "pstack_lessons";
 // The three lines lessons.sh prints first. lessons.sh indents a lesson line that would pass for one of its own, and
-// the patterns are anchored to a line start, so neither a lesson nor source code that quotes them is a match. The
-// first line is not anchored, so output of a command chained before the script without a final newline is cut off too.
+// the patterns are anchored to a line start, so neither a lesson nor source code that quotes them is a match.
 // Lines end only at `\n`, as for sed: the `m` flag would also end them at `\r` and U+2028, which sed leaves alone.
-export const LESSONS_START = /user layer: .*\nproject write target: .*\nLessons follow in rising priority/;
+export const LESSONS_START = /(?<![^\n])user layer: .*\nproject write target: .*\nLessons follow in rising priority/;
 // The line lessons.sh prints last. The bash tool keeps only the tail of long output, which drops the header.
 export const LESSONS_END = /(?<![^\n])== end of lessons(?![^\n])/;
 // The line lessons.sh prints before each lesson.
 export const LESSON_HEADER = /(?<![^\n])== lesson for /;
 export const SKILLS_DIR = fileURLToPath(new URL("../skills", import.meta.url));
 const SCRIPT = `${SKILLS_DIR}/poteto-mode/scripts/lessons.sh`;
-// A command that runs the script and nothing else, by `sh` as the skill writes it or by its path, with env
-// assignments before it. A value holds no quote, expansion or operator, so all of the call's output is the script's.
-// Any other command, even one that runs the script, is not a run: output chained after the script could pass for
-// lessons, and the notice puts it in a user message.
-const path = SCRIPT.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-const RUN = new RegExp(`^(?:[A-Za-z_]\\w*=[^\\s;&|<>()$\`'"\\\\]*[ \t]+)*(?:sh[ \t]+)?${path}$`);
-export const runsScript = (command: string) => RUN.test(command.trim());
+// A word the shell takes as it is: no whitespace, quote, expansion or operator.
+const PLAIN = "[^\\s;&|<>()$`'\"\\\\]";
+// A path as one plain word, or in quotes when it holds a space.
+const PATH = `(${PLAIN}+|'[^']*'|"[^"$\`\\\\]*")`;
+// The script with nothing else in its call, so all of the call's output is the script's: by `sh` as the skill writes
+// it or by its path, after a `cd` to an absolute path, which prints nothing, and with `--create`, whose own lines go to
+// stderr, and `2>&1`, which the bash tool does anyway. PI_CODING_AGENT_DIR is the only env assignment: `PATH=` could
+// pick another `sh`. Any other command, even one that runs the script, is not a run, since output chained after the
+// script could pass for lessons, and the notice puts it in a user message.
+const RUN = new RegExp(`^(?:cd[ \\t]+${PATH}[ \\t]*(?:&&|;)[ \\t]*)?(?:PI_CODING_AGENT_DIR=${PLAIN}*[ \\t]+)?`
+	+ `(?:sh[ \\t]+)?${PATH}(?:[ \\t]+--create)?(?:[ \\t]+2>&1)?$`);
+const unquote = (word: string) => (/^['"]/.test(word) ? word.slice(1, -1) : word);
+
+export function runsScript(command: string): boolean {
+	const [, dir, script] = RUN.exec(command.trim()) ?? [];
+	if (script === undefined || (dir !== undefined && !isAbsolute(unquote(dir)))) return false;
+	// Without a `cd` the call's directory is unknown, so only an absolute path names the script.
+	return resolve(dir === undefined ? "/" : unquote(dir), unquote(script)) === SCRIPT;
+}
 
 type ToolResult = Extract<SessionMessageEntry["message"], { role: "toolResult" }>;
 
@@ -27,8 +39,6 @@ type ToolResult = Extract<SessionMessageEntry["message"], { role: "toolResult" }
 function textOf(content: ToolResult["content"] | null | undefined): string {
 	return (content ?? []).flatMap((c) => (c.type === "text" ? [c.text] : [])).join("\n");
 }
-
-const lastMatch = (text: string, pattern: RegExp) => [...text.matchAll(new RegExp(pattern, "g"))].at(-1);
 
 export default function lessonsCompaction(pi: ExtensionAPI) {
 	// Not `context`: a change there makes Pi fold every system message into the head, so a prompt or tool change
@@ -64,12 +74,14 @@ export default function lessonsCompaction(pi: ExtensionAPI) {
 			const text = textOf(entry.message.content);
 			// Output without the last line was cut short, as by a run that failed, and may lack the lessons with the
 			// highest priority.
-			const end = lastMatch(text, LESSONS_END);
+			const end = [...text.matchAll(new RegExp(LESSONS_END, "g"))].at(-1);
 			if (!end) return;
 			const upTo = end.index + end[0].length;
-			// Without its first lines, the bash tool kept just its tail. The first match and the last end line also hold
-			// a run from a session older than the indentation in lessons.sh, whose lessons could quote both lines.
-			const start = text.match(LESSONS_START) ?? undefined;
+			// When the bash tool kept just the tail, the first lines are gone, and what matches them is a quote in a lesson
+			// from a session older than the indentation in lessons.sh. In a whole run, the first match and the last end line
+			// keep every lesson of such a session.
+			const details = entry.message.details as BashToolDetails | undefined;
+			const start = details?.truncation?.truncated ? undefined : (text.match(LESSONS_START) ?? undefined);
 			return { text: text.slice(start?.index ?? 0, upTo), whole: start !== undefined };
 		};
 		if (branch.slice(checkpointAt + 1).some(lessonsOf)) return;
