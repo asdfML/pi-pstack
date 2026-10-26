@@ -1,5 +1,6 @@
 import { fileURLToPath } from "node:url";
 import type { BashToolDetails, ExtensionAPI, SessionEntry, SessionMessageEntry } from "@earendil-works/pi-coding-agent";
+import { type ScriptRuns, scriptRuns } from "./shell-commands.ts";
 
 export const LESSONS_TYPE = "pstack_lessons";
 // The three lines lessons.sh prints first. lessons.sh indents a lesson line that would pass for one of its own, and
@@ -11,127 +12,6 @@ export const LESSONS_START = /user layer: .*\nproject write target: .*\nLessons 
 export const LESSONS_END = /(?<![^\n])== end of lessons(?![^\n])/;
 // The line lessons.sh prints before each lesson.
 export const LESSON_HEADER = /(?<![^\n])== lesson for /;
-const WRAPPERS = new Set(["exec", "command", "time", "env", "nice", "nohup", "sudo", "xargs", "timeout", "source", "."]);
-const SHELLS = new Set(["sh", "bash", "dash", "zsh", "ksh"]);
-// Words that can come before a command word in shell grammar.
-const RESERVED = new Set(["{", "!", "if", "then", "else", "elif", "while", "until", "do"]);
-const HEREDOC = /^<<(-?)[ \t]*((?:'[^']*'|"[^"]*"|\\.|[^\s;&|()<>'"\\])+)/;
-
-// The index of the `)` or backtick that closes a command substitution whose text starts at `from`.
-function substitutionEnd(line: string, from: number, close: string): number {
-	let depth = 0;
-	let quote = "";
-	for (let i = from; i < line.length; i++) {
-		const c = line[i];
-		if (c === "\\" && quote !== "'") i++;
-		else if (quote) {
-			if (c === quote) quote = "";
-		} else if (c === "'" || c === '"') quote = c;
-		else if (c === close && depth === 0) return i;
-		else if (close === ")" && c === "(") depth++;
-		else if (close === ")" && c === ")") depth--;
-	}
-	return line.length;
-}
-
-// The simple commands of a shell command line, as words with quotes removed. Quoted text stays inside its word, so
-// code passed to another interpreter is not split into commands, and comments, redirections and heredoc bodies are
-// skipped. The commands inside `$(…)` and backticks are read on their own, and the substitution stays part of its word.
-function simpleCommands(line: string): string[][] {
-	const commands: string[][] = [];
-	let words: string[] = [];
-	let word: string | undefined;
-	let quote = "";
-	const heredocs: { end: string; tabs: boolean }[] = [];
-	let target = false;
-	const endWord = () => {
-		if (word !== undefined && !target) words.push(word);
-		if (word !== undefined) target = false;
-		word = undefined;
-	};
-	const endCommand = () => {
-		endWord();
-		if (words.length) commands.push(words);
-		words = [];
-	};
-	for (let i = 0; i < line.length; i++) {
-		const c = line[i];
-		const opens = c === "`" ? 1 : c === "$" && line[i + 1] === "(" ? 2 : 0;
-		const heredoc = quote ? null : HEREDOC.exec(line.slice(i));
-		if (quote === "'") {
-			if (c === quote) quote = "";
-			else word += c;
-		} else if (c === "\\" && line[i + 1] === "\n") i++;
-		else if (opens) {
-			const end = substitutionEnd(line, i + opens, opens === 1 ? "`" : ")");
-			commands.push(...simpleCommands(line.slice(i + opens, end)));
-			word = (word ?? "") + line.slice(i, end + 1);
-			i = end;
-		} else if (quote) {
-			if (c === quote) quote = "";
-			else word += c === "\\" && i + 1 < line.length ? line[++i] : c;
-		} else if (heredoc) {
-			endWord();
-			const end = heredoc[2].replace(/'([^']*)'|"([^"]*)"|\\(.)/g, (_, single, double, escaped) =>
-				single ?? double ?? escaped);
-			heredocs.push({ end, tabs: heredoc[1] === "-" });
-			i += heredoc[0].length - 1;
-		} else if (c === "'" || c === '"') {
-			quote = c;
-			word ??= "";
-		} else if (c === "<" || c === ">") {
-			// A file descriptor before the operator is part of it, and the word after it is its target.
-			if (/^\d+$/.test(word ?? "")) word = undefined;
-			endWord();
-			const operator = /^[<>]+[&|]?(?:\d+|-)?/.exec(line.slice(i))![0];
-			target = !/[\d-]$/.test(operator);
-			i += operator.length - 1;
-		} else if (c === "#" && word === undefined) {
-			const newline = line.indexOf("\n", i);
-			i = (newline < 0 ? line.length : newline) - 1;
-		} else if (c === "\\") word = (word ?? "") + (line[++i] ?? "");
-		else if (c === "\n") {
-			endCommand();
-			for (const { end, tabs } of heredocs.splice(0)) {
-				while (i < line.length) {
-					const from = i + 1;
-					i = line.indexOf("\n", from);
-					if (i < 0) i = line.length;
-					const body = line.slice(from, i);
-					if ((tabs ? body.replace(/^\t+/, "") : body) === end) break;
-				}
-			}
-		} else if (/\s/.test(c)) endWord();
-		else if (";&|()".includes(c)) endCommand();
-		else word = (word ?? "") + c;
-	}
-	endCommand();
-	return commands;
-}
-
-// Whether a command line runs lessons.sh: in one of its simple commands the script's path is the command word, after
-// any reserved words, env assignments, wrappers with their flags and numbers, and a shell with its flags, or it runs
-// in the string a shell gets with `-c`. A command that only names the script, as a file argument (`cat`, `rg`,
-// `git diff`), in a variable or in code for another interpreter, does not.
-export function runsScript(line: string): boolean {
-	return simpleCommands(line).some((words) => {
-		const name = (at: number) => words[at]?.split("/").at(-1) ?? "";
-		let i = 0;
-		let wrapped = false;
-		while (i < words.length && (RESERVED.has(words[i]) || /^\w+=/.test(words[i]) || WRAPPERS.has(name(i))
-			|| (wrapped && (words[i].startsWith("-") || /^\d/.test(words[i]))))) {
-			wrapped ||= WRAPPERS.has(name(i));
-			// The value of `env -u`, `sudo -u`, `nice -n`, `timeout -s` and the like.
-			i += /^-[ugnskC]$/.test(words[i]) ? 2 : 1;
-		}
-		if (SHELLS.has(name(i))) {
-			for (i++; /^[-+]/.test(words[i] ?? ""); i += /^[-+][oO]$/.test(words[i]) ? 2 : 1) {
-				if (/^-\w*c/.test(words[i])) return runsScript(words[i + 1] ?? "");
-			}
-		}
-		return /^(?:lessons\.sh|(?!-)[^=]*\/lessons\.sh)$/.test(words[i] ?? "");
-	});
-}
 export const SKILLS_DIR = fileURLToPath(new URL("../skills", import.meta.url));
 const SCRIPT = `${SKILLS_DIR}/poteto-mode/scripts/lessons.sh`;
 
@@ -158,36 +38,40 @@ export default function lessonsCompaction(pi: ExtensionAPI) {
 		// the call tells the two apart. A command that runs the script and then shows such a file still passes for a
 		// run. Results follow the message that made their calls, in call order, so each takes the first call left with
 		// its id: some providers leave call ids empty.
-		const runs = new Set<string>();
-		let calls: { id: string; run: boolean }[] = [];
+		const runs = new Map<string, ScriptRuns>();
+		let calls: { id: string; runs: ScriptRuns }[] = [];
 		for (const entry of branch) {
 			if (entry.type !== "message") continue;
 			if (entry.message.role === "assistant") {
 				calls = (entry.message.content ?? []).flatMap((c) => (c.type === "toolCall"
-					? [{ id: c.id, run: runsScript(String(c.arguments?.command ?? "")) }] : []));
+					? [{ id: c.id, runs: scriptRuns(String(c.arguments?.command ?? "")) }] : []));
 			} else if (entry.message.role === "toolResult") {
 				const { toolCallId } = entry.message;
 				const call = calls.findIndex((c) => c.id === toolCallId);
-				if (call >= 0 && calls.splice(call, 1)[0].run) runs.add(entry.id);
+				const called = call >= 0 ? calls.splice(call, 1)[0].runs : undefined;
+				if (called?.count) runs.set(entry.id, called);
 			}
 		}
 		// The last run in a tool result, or undefined when there is none. One call can run the script before and after
 		// writing a lesson, and output of commands chained before or after the script is stale by the time it comes back.
 		const lessonsOf = (entry: SessionEntry): { text: string; whole: boolean } | undefined => {
-			if (entry.type !== "message" || entry.message.role !== "toolResult" || !runs.has(entry.id) || edited.has(entry.id)) {
-				return;
-			}
+			const called = runs.get(entry.id);
+			if (entry.type !== "message" || entry.message.role !== "toolResult" || !called || edited.has(entry.id)) return;
 			const text = textOf(entry.message.content);
 			// Output without the last line was cut from the bottom (`| head`) and may lack the lessons with the highest
-			// priority. Runs of the script from before it printed that line do not count either.
-			const end = lastMatch(text, LESSONS_END);
-			if (!end) return;
+			// priority. Runs of the script from before it printed that line do not count either. Only the script prints
+			// that line at a line start, since it indents lesson lines that look like its own, so more of them than the
+			// command runs the script means another command printed one: an issue or a report could then pass for
+			// lessons, which the notice puts in a user message.
+			const ends = [...text.matchAll(new RegExp(LESSONS_END, "g"))];
+			const end = ends.at(-1);
+			if (!end || ends.length > called.count) return;
 			const upTo = end.index + end[0].length;
 			const start = lastMatch(text.slice(0, upTo), LESSONS_START);
-			// Without its first lines, output counts only when the bash tool kept just its tail. A `| tail` shows a part
-			// with nothing to say how much is missing.
+			// Without its first lines, output counts only when the bash tool kept just its tail and that tail is the
+			// script's, so the script is the command's last. A `| tail` shows a part with nothing to say how much is missing.
 			const details = entry.message.details as BashToolDetails | undefined;
-			if (!start && !details?.truncation?.truncated) return;
+			if (!start && !(called.last && details?.truncation?.truncated)) return;
 			return { text: text.slice(start?.index ?? 0, upTo), whole: start !== undefined };
 		};
 		if (branch.slice(checkpointAt + 1).some(lessonsOf)) return;
