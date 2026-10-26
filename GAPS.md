@@ -146,8 +146,9 @@ lines) to port instead.
   nothing but the script's output: the script by `sh` or by its path, optionally after a `cd` to an
   absolute path and with `--create` or `2>&1`. A session whose runs all take another form, such
   as `| head` or a chained command, gets no notice, and a rerun in another form does not stop the
-  older lessons from coming back. The skill asks for the script in a call of its own. Unchecked
-  since the notice changed: a live run in which the model applies lessons from it.
+  older lessons from coming back. The skill asks for the script in a call of its own. Checked live
+  on all three compaction strategies: after a compaction the model quotes the lessons and treats
+  them as amendments. Unchecked: that it acts on them.
 
 - **Package dependencies.** Pi packages cannot declare other Pi packages as dependencies;
   `dependencies` in `package.json` only covers npm modules imported by extensions. Required:
