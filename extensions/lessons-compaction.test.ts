@@ -330,6 +330,7 @@ test("a run the bash tool cut to its tail still counts", async () => {
 	const notice = notices(await before.project())[0].content;
 	expect(notice).toContain("TAIL-LESSON");
 	expect(notice).toContain("a later lesson wins over an earlier one for the same file");
+	expect(notice).toContain("The bash tool cut the start of this output");
 
 	const after = fixture();
 	after.runLessons();
@@ -369,13 +370,41 @@ test("output cut from the bottom is not a run, so it neither hides nor replaces 
 	}
 });
 
-test("output of commands chained after the run does not come back", async () => {
+test("output of commands chained before or after the run does not come back", async () => {
 	const h = fixture();
-	h.tool("bash", await bashLessons({ "how/SKILL.md": "CHAINED-LESSON\n" }, "; echo STALE-STATUS"));
+	h.tool("bash", `STALE-BEFORE\n${await bashLessons({ "how/SKILL.md": "CHAINED-LESSON\n" }, "; echo STALE-STATUS")}`);
 	h.manager.appendCompaction("Compacted", null, 1000);
 	const notice = notices(await h.project())[0].content;
 	expect(notice).toContain("CHAINED-LESSON");
+	expect(notice).toContain("user layer: ");
+	expect(notice).not.toContain("STALE-BEFORE");
 	expect(notice).not.toContain("STALE-STATUS");
+	expect(notice).not.toContain("cut the start");
+});
+
+test("with two runs in one tool result, as when a lesson is written between them, the second one counts", async () => {
+	const run = (lessons: Record<string, string>) => bashLessons(lessons);
+	const once = async (first: string, second: string) => {
+		const h = fixture();
+		h.tool("bash", `${first}\n${second}`);
+		h.manager.appendCompaction("Compacted", null, 1000);
+		return notices(await h.project()).map((n) => n.content);
+	};
+	const written = await once(await run({}), await run({ "how/SKILL.md": "FIRST-WRITTEN\n" }));
+	expect(written[0]).toContain("FIRST-WRITTEN");
+	const updated = await once(await run({ "arena/SKILL.md": "REMOVED-LESSON\n" }), await run({ "how/SKILL.md": "NEW-LESSON\n" }));
+	expect(updated[0]).toContain("NEW-LESSON");
+	expect(updated[0]).not.toContain("REMOVED-LESSON");
+	expect(await once(await run({ "arena/SKILL.md": "REMOVED-LESSON\n" }), await run({}))).toHaveLength(0);
+});
+
+test("a lesson that quotes the first and last lines does not cut the lessons after it", async () => {
+	const quoting = "QUOTING-LESSON\n```\nuser layer: /example\n== end of lessons\n```\nQUOTED-TAIL\n";
+	const h = fixture();
+	h.tool("bash", await bashLessons({ "arena/SKILL.md": quoting, "how/SKILL.md": "HOW-LESSON\n" }));
+	h.manager.appendCompaction("Compacted", null, 1000);
+	const notice = notices(await h.project())[0].content;
+	for (const token of ["QUOTING-LESSON", "QUOTED-TAIL", "HOW-LESSON"]) expect(notice).toContain(token);
 });
 
 test("tool results with null or missing content, which old session files can hold, do not stop the notice", async () => {
@@ -389,7 +418,7 @@ test("tool results with null or missing content, which old session files can hol
 	expect(notices(await h.project())).toHaveLength(1);
 });
 
-test("a run that exits non-zero after printing the lessons counts; output without the header does not", async () => {
+test("a run that exits non-zero after printing the lessons counts; output without the end line does not", async () => {
 	const failed = fixture();
 	failed.runLessons("CREATE-FAILED", true);
 	failed.manager.appendCompaction("Compacted", null, 1000);
