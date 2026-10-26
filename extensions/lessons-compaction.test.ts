@@ -11,7 +11,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { removeNativeCompactionRetainedMessages, rewriteResponsesPayloadWithNativeReplay } from "pi-openai-toolkit/src/payload-rewrite.ts";
 import { serializeMessagesToResponsesInput } from "pi-openai-toolkit/src/serializer.ts";
-import { LESSONS_RUN, LESSONS_TYPE, SKILLS_DIR } from "./lessons-compaction.ts";
+import { LESSON_HEADER, LESSONS_END, LESSONS_RUN, LESSONS_TYPE, SKILLS_DIR } from "./lessons-compaction.ts";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const scratch = realpathSync(mkdtempSync(join(tmpdir(), "lessons-compaction-")));
@@ -57,7 +57,7 @@ const roles = (messages: any[]) => messages.map((m) => (isNotice(m) ? "notice" :
 test("the package manifest loads this extension through Pi's loader", () => {
 	expect(loaded.errors).toEqual([]);
 	expect(loaded.extensions.map((extension) => extension.path)).toEqual([join(root, "extensions/lessons-compaction.ts")]);
-	expect(loaded.extensions[0].handlers.has("context")).toBe(true);
+	expect(loaded.extensions[0].handlers.has("context_with_system")).toBe(true);
 });
 
 const installed = join(process.env.PI_MANAGED_INSTALL_ROOT
@@ -122,7 +122,7 @@ test("with nothing after the checkpoint yet, the notice goes last and says to ca
 	midRun.manager.appendCompaction("Compacted", midRun.tool("read", "file").call, 1000);
 	const projected = await midRun.project();
 	expect(roles(projected)).toEqual(["compactionSummary", "assistant", "toolResult", "notice"]);
-	expect(projected.at(-1).content).toContain("Then continue where the conversation left off.");
+	expect(projected.at(-1).content).toEndWith("Continue where the conversation left off. Tool calls that already have results are done.");
 });
 
 test("a rerun after the checkpoint is already live, so nothing is added", async () => {
@@ -220,6 +220,17 @@ test("in a session, tool results an earlier handler trims are not split from the
 	expect(context[6][1]).toContain("PROBE-BODY");
 });
 
+test("in a session, a system message after the checkpoint stays in place, so the cached prefix holds", async () => {
+	const h = fixture();
+	h.runLessons();
+	h.manager.appendCompaction("Compacted", null, 1000);
+	// What a prompt-section or tool-loadout change persists.
+	h.manager.appendMessage({ role: "system", content: "", sections: { probe_delta: "DELTA-SECTION" }, timestamp: 50 } as never);
+	const context = await providerContext(h.manager, "export default () => {};", "goal_continuation");
+	// Pi's own request is `user, system, system, user`. Folded into one head, the delta would change the prefix.
+	expect(context.map(([role]) => role)).toEqual(["user", "notice", "system", "system", "user"]);
+});
+
 test("Codex native replay drops the retained tail but keeps one copy of the lessons, after the checkpoint", async () => {
 	const h = fixture();
 	const details = { strategy: "openai-remote-compaction-v2", inputProvenance: "legacy-raw-context-v1", provider: "openai-codex",
@@ -255,12 +266,27 @@ test("new work another hook rewrote does not move the notice; with nothing kept 
 	expect(roles(await h.project(rewritten))).toEqual(["compactionSummary", "assistant", "toolResult", "notice", "user"]);
 	const unrecognizable = h.manager.buildSessionContext().messages.map((m: any) => ({ ...m, timestamp: 0 }));
 	expect(roles(await h.project(unrecognizable))).toEqual(["compactionSummary", "assistant", "toolResult", "user", "notice"]);
+
+	// System messages still match their copies, but they are not anchors.
+	const withSystem = fixture();
+	withSystem.manager.appendMessage({ role: "system", content: "", sections: { probe_head: "HEAD" }, timestamp: 2 } as never);
+	withSystem.runLessons();
+	withSystem.manager.appendCompaction("Compacted", null, 1000);
+	withSystem.user("Continue");
+	const othersRewritten = withSystem.manager.buildSessionContext().messages
+		.map((m: any) => (m.role === "system" ? m : { ...m, timestamp: 0 }));
+	const projected = await withSystem.project(othersRewritten);
+	expect(roles(projected)).toContain("system");
+	expect(roles(projected).at(-1)).toBe("notice");
 });
 
 test("reading files that quote the first or last line is not a run, before or after the checkpoint", async () => {
 	const sources = [`${SKILLS_DIR}/poteto-mode/scripts/lessons.sh`,
 		new URL("./lessons-compaction.ts", import.meta.url), new URL("./lessons-compaction.test.ts", import.meta.url)]
 		.map((path) => readFileSync(path, "utf8"));
+	// A note that describes the output, with a lesson header in its example.
+	sources.push("The script prints `Lessons follow in rising priority`, then each lesson, and ends with `== end of lessons`:\n\n" +
+		"== lesson for how/SKILL.md from ~/.pi/agent/pstack/lessons\n");
 	for (const source of sources) {
 		expect(source).toContain("Lessons follow in rising priority");
 		expect(source).toContain("== end of lessons");
@@ -277,23 +303,31 @@ test("reading files that quote the first or last line is not a run, before or af
 	}
 });
 
+// Runs the real lessons.sh through the real bash tool, with these user-layer lessons.
+async function bashLessons(lessons: Record<string, string>, pipe = "") {
+	const agent = mkdtempSync(join(scratch, "agent-"));
+	for (const [file, text] of Object.entries(lessons)) {
+		mkdirSync(join(agent, "pstack/lessons", file, ".."), { recursive: true });
+		writeFileSync(join(agent, "pstack/lessons", file), text);
+	}
+	const { content, details } = await createBashTool(scratch).execute("lessons",
+		{ command: `PI_CODING_AGENT_DIR=${agent} sh ${SKILLS_DIR}/poteto-mode/scripts/lessons.sh${pipe}` });
+	if (details?.fullOutputPath) rmSync(details.fullOutputPath, { force: true });
+	return content.map((c: any) => c.text).join("\n");
+}
+const longLesson = Array.from({ length: DEFAULT_MAX_LINES }, (_, i) => `line ${i}`).join("\n");
+
 test("a run the bash tool cut to its tail still counts, and so does a run from before the end line", async () => {
-	const agent = join(scratch, "big-agent");
-	mkdirSync(join(agent, "pstack/lessons/arena"), { recursive: true });
-	mkdirSync(join(agent, "pstack/lessons/how"), { recursive: true });
-	writeFileSync(join(agent, "pstack/lessons/arena/SKILL.md"), Array.from({ length: DEFAULT_MAX_LINES }, (_, i) => `line ${i}`).join("\n"));
-	writeFileSync(join(agent, "pstack/lessons/how/SKILL.md"), "TAIL-LESSON\n");
-	const { content, details } = await createBashTool(scratch).execute("big",
-		{ command: `PI_CODING_AGENT_DIR=${agent} sh ${SKILLS_DIR}/poteto-mode/scripts/lessons.sh` });
-	rmSync(details.fullOutputPath, { force: true });
-	const cut = content.map((c: any) => c.text).join("\n");
+	const cut = await bashLessons({ "arena/SKILL.md": longLesson, "how/SKILL.md": "TAIL-LESSON\n" });
 	expect(cut).not.toMatch(LESSONS_RUN);
 	expect(cut).toContain("[Showing lines ");
 
 	const before = fixture();
 	before.tool("bash", cut);
 	before.manager.appendCompaction("Compacted", null, 1000);
-	expect(notices(await before.project())[0].content).toContain("TAIL-LESSON");
+	const notice = notices(await before.project())[0].content;
+	expect(notice).toContain("TAIL-LESSON");
+	expect(notice).toContain("a later lesson wins over an earlier one for the same file");
 
 	const after = fixture();
 	after.runLessons();
@@ -301,10 +335,48 @@ test("a run the bash tool cut to its tail still counts, and so does a run from b
 	after.tool("bash", cut);
 	expect(notices(await after.project())).toHaveLength(0);
 
+	// One lesson longer than the limit leaves no lesson header in the output.
+	const single = await bashLessons({ "how/SKILL.md": `${longLesson}\nSINGLE-LESSON\n` });
+	expect(single).not.toMatch(LESSON_HEADER);
+	const alone = fixture();
+	alone.tool("bash", single);
+	alone.manager.appendCompaction("Compacted", null, 1000);
+	expect(notices(await alone.project())[0].content).toContain("SINGLE-LESSON");
+
 	const old = fixture();
 	old.tool("bash", lessonsOutput("OLD-SCRIPT").replace(end, "\n"));
 	old.manager.appendCompaction("Compacted", null, 1000);
 	expect(notices(await old.project())[0].content).toContain("OLD-SCRIPT");
+});
+
+test("output cut from the bottom is not a run, so it neither hides nor replaces the whole run", async () => {
+	const whole = await bashLessons({ "how/SKILL.md": "WHOLE-LESSON\n" });
+	const top = await bashLessons({ "how/SKILL.md": "WHOLE-LESSON\n" }, " | head -3");
+	expect(top).toMatch(LESSONS_RUN);
+	expect(top).not.toMatch(LESSONS_END);
+
+	const before = fixture();
+	before.tool("bash", whole);
+	before.tool("bash", top);
+	before.manager.appendCompaction("Compacted", null, 1000);
+	expect(notices(await before.project())[0].content).toContain("WHOLE-LESSON");
+
+	const after = fixture();
+	after.tool("bash", whole);
+	after.manager.appendCompaction("Compacted", null, 1000);
+	after.tool("bash", top);
+	expect(notices(await after.project())[0].content).toContain("WHOLE-LESSON");
+});
+
+test("tool results with null or missing content, which old session files can hold, do not stop the notice", async () => {
+	const h = fixture();
+	h.runLessons();
+	h.manager.appendMessage({ role: "assistant", timestamp: 30, content: [
+		{ type: "toolCall", id: "n1", name: "read", arguments: {} }, { type: "toolCall", id: "n2", name: "read", arguments: {} }] } as never);
+	h.manager.appendMessage({ role: "toolResult", toolName: "read", toolCallId: "n1", isError: false, content: null, timestamp: 31 } as never);
+	h.manager.appendMessage({ role: "toolResult", toolName: "read", toolCallId: "n2", isError: false, timestamp: 32 } as never);
+	h.manager.appendCompaction("Compacted", null, 1000);
+	expect(notices(await h.project())).toHaveLength(1);
 });
 
 test("a run that exits non-zero after printing the lessons counts; output without the header does not", async () => {
