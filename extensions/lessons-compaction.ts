@@ -13,24 +13,27 @@ export const LESSONS_END = /(?<![^\n])== end of lessons(?![^\n])/;
 export const LESSON_HEADER = /(?<![^\n])== lesson for /;
 export const SKILLS_DIR = fileURLToPath(new URL("../skills", import.meta.url));
 const SCRIPT = `${SKILLS_DIR}/poteto-mode/scripts/lessons.sh`;
-// A word the shell takes as it is: no whitespace, quote, expansion or operator.
-const PLAIN = "[^\\s;&|<>()$`'\"\\\\]";
-// A path as one plain word, or in quotes when it holds a space.
-const PATH = `(${PLAIN}+|'[^']*'|"[^"$\`\\\\]*")`;
+// A word the shell takes as it is: no whitespace, quote, expansion, glob or operator.
+const PLAIN = "[^\\s;&|<>()$`'\"\\\\*?[]";
+// A path as one plain word, or in quotes when it holds a space. A failed `cd` or `sh` prints its path, so a path
+// holds no line break: its lines could pass for a run.
+const PATH = `(${PLAIN}+|'[^'\n]*'|"[^"$\`\\\\\n]*")`;
 // The script with nothing else in its call, so all of the call's output is the script's: by `sh` as the skill writes
-// it or by its path, after a `cd` to an absolute path, which prints nothing, and with `--create`, whose own lines go to
-// stderr, and `2>&1`, which the bash tool does anyway. PI_CODING_AGENT_DIR is the only env assignment: `PATH=` could
-// pick another `sh`. Any other command, even one that runs the script, is not a run, since output chained after the
-// script could pass for lessons, and the notice puts it in a user message.
+// it or by its path, after a `cd` to an absolute path, which prints nothing or one error line, and with `--create`,
+// whose own lines go to stderr, and `2>&1`, which the bash tool does anyway. PI_CODING_AGENT_DIR is the only env
+// assignment: `PATH=` could pick another `sh`. Any other command, even one that runs the script, is not a run, since
+// output chained after the script could pass for lessons, and the notice puts it in a user message.
 const RUN = new RegExp(`^(?:cd[ \\t]+${PATH}[ \\t]*(?:&&|;)[ \\t]*)?(?:PI_CODING_AGENT_DIR=${PLAIN}*[ \\t]+)?`
-	+ `(?:sh[ \\t]+)?${PATH}(?:[ \\t]+--create)?(?:[ \\t]+2>&1)?$`);
+	+ `(?:(sh)[ \\t]+)?${PATH}(?:[ \\t]+--create)?(?:[ \\t]+2>&1)?$`);
 const unquote = (word: string) => (/^['"]/.test(word) ? word.slice(1, -1) : word);
 
 export function runsScript(command: string): boolean {
-	const [, dir, script] = RUN.exec(command.trim()) ?? [];
-	if (script === undefined || (dir !== undefined && !isAbsolute(unquote(dir)))) return false;
-	// Without a `cd` the call's directory is unknown, so only an absolute path names the script.
-	return resolve(dir === undefined ? "/" : unquote(dir), unquote(script)) === SCRIPT;
+	const [, dir, sh, script] = RUN.exec(command.trim()) ?? [];
+	// Without `sh`, bash looks a word with no `/` up in PATH.
+	if (script === undefined || (sh === undefined && !script.includes("/"))) return false;
+	// The script's path is relative to the `cd`. Without one the call's directory is unknown, so the path must be absolute.
+	const paths = (dir === undefined ? [script] : [dir, script]).map(unquote);
+	return isAbsolute(paths[0]) && resolve(...paths) === SCRIPT;
 }
 
 type ToolResult = Extract<SessionMessageEntry["message"], { role: "toolResult" }>;
