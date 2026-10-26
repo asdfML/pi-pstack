@@ -55,3 +55,4 @@ Reference for humans syncing upstream. Agents never read this file.
 `skills/poteto-mode/scripts`, then `bun test` in the root. When Pi updates, bump that pin to the new version
 and run `bun install`. Until then the tests that compare the pin with the installed Pi and with `node_modules` fail.
 The Codex replay test runs the pinned `pi-openai-toolkit`, the toolkit the Codex native compaction strategy uses.
+When that strategy moves to a new toolkit version, bump this pin with it and run `bun install`.

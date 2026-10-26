@@ -25,4 +25,6 @@ show() {
 }
 show "$user"
 printf '%s\n' "$layers" | sed '/^$/d; 1!G;h;$!d' | while IFS= read -r dir; do show "$dir"; done
+# A tool that keeps only the tail of long output still keeps this line, so the run stays recognizable.
+printf '\n== end of lessons\n'
 exit $code

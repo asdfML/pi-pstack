@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { afterAll, expect, test } from "bun:test";
-import { LESSON_HEADER, LESSONS_RUN } from "../../../extensions/lessons-compaction.ts";
+import { LESSON_HEADER, LESSONS_END, LESSONS_RUN } from "../../../extensions/lessons-compaction.ts";
 
 const script = join(import.meta.dir, "lessons.sh");
 const home = realpathSync(mkdtempSync(join(tmpdir(), "lessons-home-")));
@@ -50,15 +50,21 @@ test("every layer up to home is read, nearer layers last, and the nearest is the
 	expect(out).not.toContain("home lesson");
 });
 
-test("the compaction extension recognizes the output as a run, and not the script's own source", () => {
-	expect(run(join(home, "ws/repo/sub")).stdout).toMatch(LESSONS_RUN);
-	expect(readFileSync(script, "utf8")).not.toMatch(LESSONS_RUN);
+test("the compaction extension recognizes the output as a run by its first and last lines, and not the script's own source", () => {
+	const out = run(join(home, "ws/repo/sub")).stdout;
+	expect(out).toMatch(LESSONS_RUN);
+	// The lesson files end without a newline, and the end line still stands on its own, last.
+	expect(out.trimEnd().split("\n").at(-1)).toMatch(LESSONS_END);
+	const source = readFileSync(script, "utf8");
+	expect(source).not.toMatch(LESSONS_RUN);
+	expect(source).not.toMatch(LESSONS_END);
 });
 
 test("the compaction extension tells a run that printed lessons from one that printed none", () => {
 	expect(run(join(home, "ws/repo/sub")).stdout).toMatch(LESSON_HEADER);
 	const none = run(outside, [], join(outside, "agent")).stdout;
 	expect(none).toMatch(LESSONS_RUN);
+	expect(none).toMatch(LESSONS_END);
 	expect(none).not.toMatch(LESSON_HEADER);
 });
 

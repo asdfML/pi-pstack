@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -6,21 +6,24 @@ import { afterAll, expect, test } from "bun:test";
 import { getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
 import { fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai/providers/faux";
 import {
-	createAgentSession, DefaultResourceLoader, discoverAndLoadExtensions, ExtensionRunner, ModelRuntime, SessionManager, SettingsManager,
+	createAgentSession, createBashTool, DEFAULT_MAX_LINES, DefaultResourceLoader, discoverAndLoadExtensions, ExtensionRunner, ModelRuntime,
+	SessionManager, SettingsManager,
 } from "@earendil-works/pi-coding-agent";
 import { removeNativeCompactionRetainedMessages, rewriteResponsesPayloadWithNativeReplay } from "pi-openai-toolkit/src/payload-rewrite.ts";
 import { serializeMessagesToResponsesInput } from "pi-openai-toolkit/src/serializer.ts";
-import { LESSONS_TYPE, SKILLS_DIR } from "./lessons-compaction.ts";
+import { LESSONS_RUN, LESSONS_TYPE, SKILLS_DIR } from "./lessons-compaction.ts";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const scratch = realpathSync(mkdtempSync(join(tmpdir(), "lessons-compaction-")));
 afterAll(() => rmSync(scratch, { recursive: true, force: true }));
 const loaded = await discoverAndLoadExtensions([root], scratch, scratch);
 
-const emptyOutput = "user layer: /agent/pstack/lessons\nproject write target: none\n" +
+const head = "user layer: /agent/pstack/lessons\nproject write target: none\n" +
 	"Lessons follow in rising priority: a later lesson wins over an earlier one for the same file.\n";
+const end = "\n== end of lessons\n";
+const emptyOutput = head + end;
 const lessonsOutput = (body: string) =>
-	`${emptyOutput}\n== lesson for arena/SKILL.md from /agent/pstack/lessons\n## Probe lesson\n\n${body}\n`;
+	`${head}\n== lesson for arena/SKILL.md from /agent/pstack/lessons\n## Probe lesson\n\n${body}\n${end}`;
 
 function fixture() {
 	const manager = SessionManager.inMemory(scratch);
@@ -68,8 +71,8 @@ test.skipIf(!existsSync(installed))("the Pi these tests pin is the Pi installed 
 	}
 });
 
-test("the tests import the pinned Pi", () => {
-	for (const [name, pinned] of Object.entries(pins).filter(([name]) => name.startsWith("@earendil-works/"))) {
+test("the tests import the pinned versions", () => {
+	for (const [name, pinned] of Object.entries(pins).filter(([, spec]) => /^\d+\.\d+\.\d+$/.test(spec))) {
 		const imported = JSON.parse(readFileSync(join(root, "node_modules", name, "package.json"), "utf8")).version;
 		if (imported !== pinned) throw new Error(`node_modules has ${name} ${imported} but package.json pins ${pinned}: run bun install`);
 	}
@@ -107,11 +110,19 @@ test("after compaction, the last run's output comes back between the summary and
 	expect(JSON.stringify(h.manager.getEntries())).not.toContain(LESSONS_TYPE);
 });
 
-test("with nothing after the checkpoint yet, the notice goes last", async () => {
+test("with nothing after the checkpoint yet, the notice goes last and says to carry on", async () => {
 	const h = fixture();
 	h.runLessons();
 	h.manager.appendCompaction("Compacted", null, 1000);
 	expect(roles(await h.project())).toEqual(["compactionSummary", "notice"]);
+
+	// A compaction inside a run keeps a tail that ends at a tool result, and the notice becomes the prompt.
+	const midRun = fixture();
+	midRun.runLessons();
+	midRun.manager.appendCompaction("Compacted", midRun.tool("read", "file").call, 1000);
+	const projected = await midRun.project();
+	expect(roles(projected)).toEqual(["compactionSummary", "assistant", "toolResult", "notice"]);
+	expect(projected.at(-1).content).toContain("Then continue where the conversation left off.");
 });
 
 test("a rerun after the checkpoint is already live, so nothing is added", async () => {
@@ -246,12 +257,13 @@ test("new work another hook rewrote does not move the notice; with nothing kept 
 	expect(roles(await h.project(unrecognizable))).toEqual(["compactionSummary", "assistant", "toolResult", "user", "notice"]);
 });
 
-test("reading files that quote the header is not a run, before or after the checkpoint", async () => {
+test("reading files that quote the first or last line is not a run, before or after the checkpoint", async () => {
 	const sources = [`${SKILLS_DIR}/poteto-mode/scripts/lessons.sh`,
 		new URL("./lessons-compaction.ts", import.meta.url), new URL("./lessons-compaction.test.ts", import.meta.url)]
 		.map((path) => readFileSync(path, "utf8"));
 	for (const source of sources) {
 		expect(source).toContain("Lessons follow in rising priority");
+		expect(source).toContain("== end of lessons");
 		const before = fixture();
 		before.tool("read", source);
 		before.manager.appendCompaction("Compacted", null, 1000);
@@ -263,6 +275,36 @@ test("reading files that quote the header is not a run, before or after the chec
 		after.tool("read", source);
 		expect(notices(await after.project())).toHaveLength(1);
 	}
+});
+
+test("a run the bash tool cut to its tail still counts, and so does a run from before the end line", async () => {
+	const agent = join(scratch, "big-agent");
+	mkdirSync(join(agent, "pstack/lessons/arena"), { recursive: true });
+	mkdirSync(join(agent, "pstack/lessons/how"), { recursive: true });
+	writeFileSync(join(agent, "pstack/lessons/arena/SKILL.md"), Array.from({ length: DEFAULT_MAX_LINES }, (_, i) => `line ${i}`).join("\n"));
+	writeFileSync(join(agent, "pstack/lessons/how/SKILL.md"), "TAIL-LESSON\n");
+	const { content, details } = await createBashTool(scratch).execute("big",
+		{ command: `PI_CODING_AGENT_DIR=${agent} sh ${SKILLS_DIR}/poteto-mode/scripts/lessons.sh` });
+	rmSync(details.fullOutputPath, { force: true });
+	const cut = content.map((c: any) => c.text).join("\n");
+	expect(cut).not.toMatch(LESSONS_RUN);
+	expect(cut).toContain("[Showing lines ");
+
+	const before = fixture();
+	before.tool("bash", cut);
+	before.manager.appendCompaction("Compacted", null, 1000);
+	expect(notices(await before.project())[0].content).toContain("TAIL-LESSON");
+
+	const after = fixture();
+	after.runLessons();
+	after.manager.appendCompaction("Compacted", null, 1000);
+	after.tool("bash", cut);
+	expect(notices(await after.project())).toHaveLength(0);
+
+	const old = fixture();
+	old.tool("bash", lessonsOutput("OLD-SCRIPT").replace(end, "\n"));
+	old.manager.appendCompaction("Compacted", null, 1000);
+	expect(notices(await old.project())[0].content).toContain("OLD-SCRIPT");
 });
 
 test("a run that exits non-zero after printing the lessons counts; output without the header does not", async () => {
