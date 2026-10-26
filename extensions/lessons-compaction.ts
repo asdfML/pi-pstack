@@ -11,10 +11,79 @@ export const LESSONS_START = /user layer: .*\nproject write target: .*\nLessons 
 export const LESSONS_END = /(?<![^\n])== end of lessons(?![^\n])/;
 // The line lessons.sh prints before each lesson.
 export const LESSON_HEADER = /(?<![^\n])== lesson for /;
-// A command that runs lessons.sh: its path is the command word, after any env assignments, wrappers and shells with
-// their flags. A command that only names it, as a file argument (`cat`, `rg`, `git diff`) or a longer name, does not.
-export const RUNS_SCRIPT =
-	/(?:^|[;&|(`\n]|\$\()\s*(?:(?:\w+=\S*|exec|command|time|env|(?:ba|da|z)?sh|-\S+)\s+)*["']?(?:[^\s;&|"'`]*\/)?lessons\.sh(?![\w.-])/;
+const WRAPPERS = new Set(["exec", "command", "time", "env", "nice", "nohup", "sudo", "xargs", "timeout"]);
+const SHELLS = new Set(["sh", "bash", "dash", "zsh", "ksh"]);
+// Words that can come before a command word in shell grammar.
+const RESERVED = new Set(["{", "!", "if", "then", "else", "elif", "while", "until", "do"]);
+
+// The simple commands of a shell command line, as words with quotes removed. Quoted text stays inside its word, so
+// code passed to another interpreter is not split into commands, and comments and heredoc bodies are skipped. `$(` and a backtick
+// only split, which is enough to find a command word inside them.
+function simpleCommands(line: string): string[][] {
+	const commands: string[][] = [];
+	let words: string[] = [];
+	let word: string | undefined;
+	let quote = "";
+	const heredocs: string[] = [];
+	const endWord = () => {
+		if (word !== undefined) words.push(word);
+		word = undefined;
+	};
+	const endCommand = () => {
+		endWord();
+		if (words.length) commands.push(words);
+		words = [];
+	};
+	for (let i = 0; i < line.length; i++) {
+		const c = line[i];
+		const heredoc = quote ? null : /^<<-?[ \t]*(['"]?)(\w+)\1/.exec(line.slice(i));
+		if (quote) {
+			if (c === quote) quote = "";
+			else word += c === "\\" && quote === '"' && i + 1 < line.length ? line[++i] : c;
+		} else if (heredoc) {
+			endWord();
+			heredocs.push(heredoc[2]);
+			i += heredoc[0].length - 1;
+		} else if (c === "'" || c === '"') {
+			quote = c;
+			word ??= "";
+		} else if (c === "#" && word === undefined) {
+			const newline = line.indexOf("\n", i);
+			i = (newline < 0 ? line.length : newline) - 1;
+		} else if (c === "\\") word = (word ?? "") + (line[++i] ?? "");
+		else if (c === "\n") {
+			endCommand();
+			for (const end of heredocs.splice(0)) {
+				const close = new RegExp(`\n\t*${end}(?=\n|$)`).exec(line.slice(i));
+				i = close ? i + close.index + close[0].length : line.length;
+			}
+		} else if (/\s/.test(c)) endWord();
+		else if (";&|()`".includes(c)) endCommand();
+		else word = (word ?? "") + c;
+	}
+	endCommand();
+	return commands;
+}
+
+// Whether a command line runs lessons.sh: in one of its simple commands the script's path is the command word, after
+// any reserved words, env assignments, wrappers with their flags and numbers, and a shell with its flags, or it runs
+// in the string a shell gets with `-c`. A command that only names the script, as a file argument (`cat`, `rg`, `git diff`), in a variable or in
+// code for another interpreter, does not.
+export function runsScript(line: string): boolean {
+	return simpleCommands(line).some((words) => {
+		const name = (at: number) => words[at]?.split("/").at(-1) ?? "";
+		let i = 0;
+		while (i < words.length && (RESERVED.has(words[i]) || /^\w+=/.test(words[i]) || WRAPPERS.has(name(i))
+			|| words[i].startsWith("-") || /^\d/.test(words[i]))) {
+			// The value of `env -u`, `sudo -u`, `nice -n`, `timeout -s` and the like.
+			i += /^-[ugnskC]$/.test(words[i]) ? 2 : 1;
+		}
+		if (SHELLS.has(name(i))) {
+			for (i++; words[i]?.startsWith("-"); i++) if (/^-\w*c/.test(words[i])) return runsScript(words[i + 1] ?? "");
+		}
+		return /(?:^|\/)lessons\.sh$/.test(words[i] ?? "");
+	});
+}
 export const SKILLS_DIR = fileURLToPath(new URL("../skills", import.meta.url));
 const SCRIPT = `${SKILLS_DIR}/poteto-mode/scripts/lessons.sh`;
 
@@ -39,16 +108,20 @@ export default function lessonsCompaction(pi: ExtensionAPI) {
 		const edited = new Set(branch.flatMap((entry) => (entry.type === "context_edit" ? [entry.targetId] : [])));
 		// Results of tool calls that ran the script. Any tool can show a lesson file that quotes a whole run, and only
 		// the call tells the two apart. A command that runs the script and then shows such a file still passes for a
-		// run. Results follow the message that made their calls, so they are paired by position: some providers leave
-		// call ids empty.
+		// run. Results follow the message that made their calls, in call order, so each takes the first call left with
+		// its id: some providers leave call ids empty.
 		const runs = new Set<string>();
-		let calls = new Set<string>();
+		let calls: { id: string; run: boolean }[] = [];
 		for (const entry of branch) {
 			if (entry.type !== "message") continue;
 			if (entry.message.role === "assistant") {
-				calls = new Set((entry.message.content ?? []).flatMap((c) => (c.type === "toolCall"
-					&& RUNS_SCRIPT.test(String(c.arguments?.command ?? "")) ? [c.id] : [])));
-			} else if (entry.message.role === "toolResult" && calls.has(entry.message.toolCallId)) runs.add(entry.id);
+				calls = (entry.message.content ?? []).flatMap((c) => (c.type === "toolCall"
+					? [{ id: c.id, run: runsScript(String(c.arguments?.command ?? "")) }] : []));
+			} else if (entry.message.role === "toolResult") {
+				const { toolCallId } = entry.message;
+				const call = calls.findIndex((c) => c.id === toolCallId);
+				if (call >= 0 && calls.splice(call, 1)[0].run) runs.add(entry.id);
+			}
 		}
 		// The last run in a tool result, or undefined when there is none. One call can run the script before and after
 		// writing a lesson, and output of commands chained before or after the script is stale by the time it comes back.
