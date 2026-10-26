@@ -11,7 +11,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { removeNativeCompactionRetainedMessages, rewriteResponsesPayloadWithNativeReplay } from "pi-openai-toolkit/src/payload-rewrite.ts";
 import { serializeMessagesToResponsesInput } from "pi-openai-toolkit/src/serializer.ts";
-import { LESSON_HEADER, LESSONS_END, LESSONS_RUN, LESSONS_TYPE, SKILLS_DIR } from "./lessons-compaction.ts";
+import { LESSON_HEADER, LESSONS_RUN, LESSONS_TYPE, SKILLS_DIR } from "./lessons-compaction.ts";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const scratch = realpathSync(mkdtempSync(join(tmpdir(), "lessons-compaction-")));
@@ -161,8 +161,10 @@ test("a run that printed no lessons gives no notice, and an empty rerun keeps th
 });
 
 // A real session, so the hook sees what Pi passes it: the session projection, after earlier extensions' handlers.
+// Pi caches an extension by path, so each call writes its own file.
+let handlers = 0;
 async function providerContext(manager: SessionManager, earlierHandler: string, customType: string) {
-	const handlerPath = join(scratch, `${customType}-handler.ts`);
+	const handlerPath = join(scratch, `handler-${++handlers}.ts`);
 	writeFileSync(handlerPath, earlierHandler);
 	const faux = fauxProvider();
 	const seen: any[][] = [];
@@ -317,7 +319,7 @@ async function bashLessons(lessons: Record<string, string>, pipe = "") {
 }
 const longLesson = Array.from({ length: DEFAULT_MAX_LINES }, (_, i) => `line ${i}`).join("\n");
 
-test("a run the bash tool cut to its tail still counts, and so does a run from before the end line", async () => {
+test("a run the bash tool cut to its tail still counts", async () => {
 	const cut = await bashLessons({ "arena/SKILL.md": longLesson, "how/SKILL.md": "TAIL-LESSON\n" });
 	expect(cut).not.toMatch(LESSONS_RUN);
 	expect(cut).toContain("[Showing lines ");
@@ -342,30 +344,38 @@ test("a run the bash tool cut to its tail still counts, and so does a run from b
 	alone.tool("bash", single);
 	alone.manager.appendCompaction("Compacted", null, 1000);
 	expect(notices(await alone.project())[0].content).toContain("SINGLE-LESSON");
-
-	const old = fixture();
-	old.tool("bash", lessonsOutput("OLD-SCRIPT").replace(end, "\n"));
-	old.manager.appendCompaction("Compacted", null, 1000);
-	expect(notices(await old.project())[0].content).toContain("OLD-SCRIPT");
 });
 
 test("output cut from the bottom is not a run, so it neither hides nor replaces the whole run", async () => {
-	const whole = await bashLessons({ "how/SKILL.md": "WHOLE-LESSON\n" });
-	const top = await bashLessons({ "how/SKILL.md": "WHOLE-LESSON\n" }, " | head -3");
-	expect(top).toMatch(LESSONS_RUN);
-	expect(top).not.toMatch(LESSONS_END);
+	const lessons = { "arena/SKILL.md": "ARENA-1\nARENA-2\nARENA-3\nARENA-4\nARENA-5\nARENA-6\n", "how/SKILL.md": "HOW-LESSON\n" };
+	const whole = await bashLessons(lessons);
+	// `| head -3` ends before the first lesson, `| head` inside it, as a `read` of the full-output log would.
+	for (const pipe of [" | head -3", " | head"]) {
+		const top = await bashLessons(lessons, pipe);
+		expect(top).toMatch(LESSONS_RUN);
+		expect(top).not.toContain("HOW-LESSON");
 
-	const before = fixture();
-	before.tool("bash", whole);
-	before.tool("bash", top);
-	before.manager.appendCompaction("Compacted", null, 1000);
-	expect(notices(await before.project())[0].content).toContain("WHOLE-LESSON");
+		const before = fixture();
+		before.tool("bash", whole);
+		before.tool("bash", top);
+		before.manager.appendCompaction("Compacted", null, 1000);
+		expect(notices(await before.project())[0].content).toContain("HOW-LESSON");
 
-	const after = fixture();
-	after.tool("bash", whole);
-	after.manager.appendCompaction("Compacted", null, 1000);
-	after.tool("bash", top);
-	expect(notices(await after.project())[0].content).toContain("WHOLE-LESSON");
+		const after = fixture();
+		after.tool("bash", whole);
+		after.manager.appendCompaction("Compacted", null, 1000);
+		after.tool("bash", top);
+		expect(notices(await after.project())[0].content).toContain("HOW-LESSON");
+	}
+});
+
+test("output of commands chained after the run does not come back", async () => {
+	const h = fixture();
+	h.tool("bash", await bashLessons({ "how/SKILL.md": "CHAINED-LESSON\n" }, "; echo STALE-STATUS"));
+	h.manager.appendCompaction("Compacted", null, 1000);
+	const notice = notices(await h.project())[0].content;
+	expect(notice).toContain("CHAINED-LESSON");
+	expect(notice).not.toContain("STALE-STATUS");
 });
 
 test("tool results with null or missing content, which old session files can hold, do not stop the notice", async () => {

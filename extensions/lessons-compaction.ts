@@ -30,15 +30,19 @@ export default function lessonsCompaction(pi: ExtensionAPI) {
 		const edited = new Set(branch.flatMap((entry) => (entry.type === "context_edit" ? [entry.targetId] : [])));
 		const isRun = (entry: SessionEntry): entry is ToolResultEntry => {
 			if (entry.type !== "message" || entry.message.role !== "toolResult" || edited.has(entry.id)) return false;
-			const text = textOf(entry.message.content);
-			// Without the last line, output was cut from the bottom (`| head`), and a missing lesson proves nothing.
-			return LESSONS_END.test(text) || (LESSONS_RUN.test(text) && LESSON_HEADER.test(text));
+			// Output without the last line was cut from the bottom (`| head`, a `read` of the bash tool's full-output
+			// log) and may lack the lessons with the highest priority. Runs of the script from before it printed that line
+			// do not count either.
+			return LESSONS_END.test(textOf(entry.message.content));
 		};
 		if (branch.slice(checkpointAt + 1).some(isRun)) return;
 		// A run kept in the retained tail still counts as gone: Codex native replay replaces that tail.
 		const run = branch.slice(0, checkpointAt).findLast(isRun);
 		if (!run) return;
-		const lessons = textOf(run.message.content);
+		const text = textOf(run.message.content);
+		// Output of commands chained after the script is stale by now.
+		const end = LESSONS_END.exec(text)!;
+		const lessons = text.slice(0, end.index + end[0].length);
 		// A whole run without a lesson printed none, and a rerun like that is still live, so the check is not in isRun.
 		// Output cut from the top lost its header to the length of its lessons, even if no lesson header is left.
 		if (LESSONS_RUN.test(lessons) && !LESSON_HEADER.test(lessons)) return;
