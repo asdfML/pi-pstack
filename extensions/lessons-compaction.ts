@@ -5,11 +5,12 @@ export const LESSONS_TYPE = "pstack_lessons";
 // The three lines lessons.sh prints first. lessons.sh indents a lesson line that would pass for one of its own, and
 // the patterns are anchored to a line start, so neither a lesson nor source code that quotes them is a match. The
 // first line is not anchored, so output of a command chained before the script without a final newline is cut off too.
+// Lines end only at `\n`, as for sed: the `m` flag would also end them at `\r` and U+2028, which sed leaves alone.
 export const LESSONS_START = /user layer: .*\nproject write target: .*\nLessons follow in rising priority/;
 // The line lessons.sh prints last. The bash tool keeps only the tail of long output, which drops the header.
-export const LESSONS_END = /^== end of lessons$/m;
+export const LESSONS_END = /(?<![^\n])== end of lessons(?![^\n])/;
 // The line lessons.sh prints before each lesson.
-export const LESSON_HEADER = /^== lesson for /m;
+export const LESSON_HEADER = /(?<![^\n])== lesson for /;
 export const SKILLS_DIR = fileURLToPath(new URL("../skills", import.meta.url));
 const SCRIPT = `${SKILLS_DIR}/poteto-mode/scripts/lessons.sh`;
 
@@ -20,7 +21,7 @@ function textOf(content: ToolResult["content"] | null | undefined): string {
 	return (content ?? []).flatMap((c) => (c.type === "text" ? [c.text] : [])).join("\n");
 }
 
-const lastMatch = (text: string, pattern: RegExp) => [...text.matchAll(new RegExp(pattern, "gm"))].at(-1);
+const lastMatch = (text: string, pattern: RegExp) => [...text.matchAll(new RegExp(pattern, "g"))].at(-1);
 
 export default function lessonsCompaction(pi: ExtensionAPI) {
 	// Not `context`: a change there makes Pi fold every system message into the head, so a prompt or tool change
@@ -35,7 +36,10 @@ export default function lessonsCompaction(pi: ExtensionAPI) {
 		// The last run in a tool result, or undefined when there is none. One call can run the script before and after
 		// writing a lesson, and output of commands chained before or after the script is stale by the time it comes back.
 		const lessonsOf = (entry: SessionEntry): { text: string; whole: boolean } | undefined => {
-			if (entry.type !== "message" || entry.message.role !== "toolResult" || edited.has(entry.id)) return;
+			// A `read` shows a file, and a lesson file can quote a whole run. The bash tool's full-output log is longer
+			// than the read tool shows at once, so a `read` of it is never the whole run either.
+			if (entry.type !== "message" || entry.message.role !== "toolResult" || entry.message.toolName === "read"
+				|| edited.has(entry.id)) return;
 			const text = textOf(entry.message.content);
 			// Output without the last line was cut from the bottom (`| head`, a `read` of the bash tool's full-output
 			// log) and may lack the lessons with the highest priority. Runs of the script from before it printed that line
@@ -45,8 +49,8 @@ export default function lessonsCompaction(pi: ExtensionAPI) {
 			const upTo = end.index + end[0].length;
 			const start = lastMatch(text.slice(0, upTo), LESSONS_START);
 			// Without its first lines, output counts only when the bash tool kept just its tail. A `read` of a lesson
-			// file or a `| tail` shows a part with nothing to say how much is missing. A file that quotes a whole run,
-			// read back, still passes for one: nothing in the text tells the two apart.
+			// file or a `| tail` shows a part with nothing to say how much is missing. A `cat` of a lesson file that
+			// quotes a whole run still passes for one: nothing in the text tells the two apart.
 			const details = entry.message.details as BashToolDetails | undefined;
 			if (!start && !(entry.message.toolName === "bash" && details?.truncation?.truncated)) return;
 			return { text: text.slice(start?.index ?? 0, upTo), whole: start !== undefined };

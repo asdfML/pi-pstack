@@ -21,8 +21,9 @@ show() {
   (cd "$1" && find -L . -type f -name '*.md' | sed 's#^\./##' | sort) | while IFS= read -r f; do
     printf '\n== lesson for %s from %s\n' "$f" "$1"
     # A lesson line that would pass for one of this script's own lines gets a leading space, so a lesson that
-    # quotes the output cannot end or start a run for the compaction extension.
-    sed -e 's/^== / &/' -e 's/^user layer: / &/' -e 's/^project write target: / &/' \
+    # quotes the output cannot end or start a run for the compaction extension. In the C locale, BSD sed passes
+    # bytes that are not valid UTF-8 instead of stopping at them.
+    LC_ALL=C sed -e 's/^== / &/' -e 's/^user layer: / &/' -e 's/^project write target: / &/' \
       -e 's/^Lessons follow in rising priority/ &/' "$1/$f"
   done
 }

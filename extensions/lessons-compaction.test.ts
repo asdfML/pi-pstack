@@ -439,30 +439,34 @@ test("a lesson that quotes the output neither starts nor ends a run, first or la
 		expect(notice).not.toContain("cut the start");
 	}
 
-	// `| head` that stops at the quoted end line.
-	const lessons = { "arena/SKILL.md": `QUOTING-LESSON\n${sample}`, "how/SKILL.md": "HIGH-PRIORITY-LESSON\n" };
-	const whole = (await bashLessons(lessons)).text;
-	const top = (await bashLessons(lessons, " | sed '/== end of lessons/q'")).text;
-	expect(top).not.toContain("HIGH-PRIORITY-LESSON");
-	const before = fixture();
-	before.tool("bash", whole);
-	before.tool("bash", top);
-	before.manager.appendCompaction("Compacted", null, 1000);
-	expect(notices(await before.project())[0].content).toContain("HIGH-PRIORITY-LESSON");
-	const after = fixture();
-	after.tool("bash", whole);
-	after.manager.appendCompaction("Compacted", null, 1000);
-	after.tool("bash", top);
-	expect(notices(await after.project())[0].content).toContain("HIGH-PRIORITY-LESSON");
+	// `| head` that stops at the quoted end line. sed ends a line only at `\n`, so after `\r` or U+2028 a quote is
+	// not indented.
+	for (const quote of [sample, "x\r== end of lessons\n", "x\u2028== end of lessons\n"]) {
+		const lessons = { "arena/SKILL.md": `QUOTING-LESSON\n${quote}`, "how/SKILL.md": "HIGH-PRIORITY-LESSON\n" };
+		const whole = (await bashLessons(lessons)).text;
+		const top = (await bashLessons(lessons, " | sed '/== end of lessons/q'")).text;
+		expect(top).not.toContain("HIGH-PRIORITY-LESSON");
+		const before = fixture();
+		before.tool("bash", whole);
+		before.tool("bash", top);
+		before.manager.appendCompaction("Compacted", null, 1000);
+		expect(notices(await before.project())[0].content).toContain("HIGH-PRIORITY-LESSON");
+		const after = fixture();
+		after.tool("bash", whole);
+		after.manager.appendCompaction("Compacted", null, 1000);
+		after.tool("bash", top);
+		expect(notices(await after.project())[0].content).toContain("HIGH-PRIORITY-LESSON");
+	}
 });
 
 test("a part of a run that the bash tool did not cut, such as a read of a lesson file or `| tail`, is not a run", async () => {
 	const quoting = "QUOTING-LESSON\n```\n== end of lessons\n```\n";
 	const whole = (await bashLessons({ "arena/SKILL.md": quoting, "how/SKILL.md": "HOW-LESSON\n" })).text;
 	const tail = (await bashLessons({ "how/SKILL.md": "TAIL-ONLY\n" }, " | tail -n 3")).text;
-	// The read tool cuts long files too, but keeps their head.
-	const cutRead = { truncation: { truncated: true } };
-	for (const [name, part, details] of [["read", quoting, cutRead], ["bash", tail, undefined]] as const) {
+	// Other tools cut long output too, but not to its tail.
+	const cut = { truncation: { truncated: true } };
+	const parts = [["grep", quoting, cut], ["read", `QUOTING-LESSON\n${sample}`, undefined], ["bash", tail, undefined]] as const;
+	for (const [name, part, details] of parts) {
 		const before = fixture();
 		before.tool("bash", whole);
 		before.tool(name, part, false, details);
@@ -480,9 +484,9 @@ test("tool results with null or missing content, which old session files can hol
 	const h = fixture();
 	h.runLessons();
 	h.manager.appendMessage({ role: "assistant", timestamp: 30, content: [
-		{ type: "toolCall", id: "n1", name: "read", arguments: {} }, { type: "toolCall", id: "n2", name: "read", arguments: {} }] } as never);
-	h.manager.appendMessage({ role: "toolResult", toolName: "read", toolCallId: "n1", isError: false, content: null, timestamp: 31 } as never);
-	h.manager.appendMessage({ role: "toolResult", toolName: "read", toolCallId: "n2", isError: false, timestamp: 32 } as never);
+		{ type: "toolCall", id: "n1", name: "bash", arguments: {} }, { type: "toolCall", id: "n2", name: "bash", arguments: {} }] } as never);
+	h.manager.appendMessage({ role: "toolResult", toolName: "bash", toolCallId: "n1", isError: false, content: null, timestamp: 31 } as never);
+	h.manager.appendMessage({ role: "toolResult", toolName: "bash", toolCallId: "n2", isError: false, timestamp: 32 } as never);
 	h.manager.appendCompaction("Compacted", null, 1000);
 	expect(notices(await h.project())).toHaveLength(1);
 });

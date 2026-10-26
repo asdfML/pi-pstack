@@ -50,7 +50,7 @@ test("every layer up to home is read, nearer layers last, and the nearest is the
 	expect(out).not.toContain("home lesson");
 });
 
-test("the compaction extension finds a run by its first and last lines, a whole one by its header, and not in the script's own source", () => {
+test("the compaction extension finds a run by its first and last lines, and not in the script's own source", () => {
 	const out = run(join(home, "ws/repo/sub")).stdout;
 	expect(out.match(LESSONS_START)?.index).toBe(0);
 	// The lesson files end without a newline, and the end line still stands on its own, last.
@@ -68,8 +68,22 @@ test("a lesson line that would pass for one of the script's own is indented, so 
 	try {
 		const out = run(join(home, "ws/repo/sub")).stdout;
 		for (const line of own) expect(out).toContain(`\n ${line}\n`);
-		expect(out.match(/^== end of lessons$/gm)).toHaveLength(1);
+		expect(out.match(new RegExp(LESSONS_END, "g"))).toHaveLength(1);
 		expect(out.match(new RegExp(LESSONS_START, "g"))).toHaveLength(1);
+	} finally {
+		rmSync(lessons, { recursive: true, force: true });
+	}
+});
+
+test("a lesson with a byte that is not UTF-8 is printed whole in a UTF-8 locale", () => {
+	const lessons = join(home, "agent/pstack/lessons/how");
+	mkdirSync(lessons, { recursive: true });
+	writeFileSync(join(lessons, "SKILL.md"), Buffer.from("BEFORE-BYTE\ncaf\xe9 au lait\nAFTER-BYTE\n", "latin1"));
+	try {
+		const env = { ...process.env, HOME: home, PI_CODING_AGENT_DIR: join(home, "agent"), LC_ALL: "en_US.UTF-8" };
+		const out = spawnSync("sh", [script], { cwd: join(home, "ws/repo/sub"), env, encoding: "utf8" });
+		expect(out.stderr).toBe("");
+		expect(out.stdout).toContain("AFTER-BYTE");
 	} finally {
 		rmSync(lessons, { recursive: true, force: true });
 	}
