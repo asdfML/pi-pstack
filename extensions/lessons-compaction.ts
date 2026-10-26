@@ -1,12 +1,11 @@
 import { fileURLToPath } from "node:url";
-import type { ExtensionAPI, SessionEntry, SessionMessageEntry } from "@earendil-works/pi-coding-agent";
+import type { BashToolDetails, ExtensionAPI, SessionEntry, SessionMessageEntry } from "@earendil-works/pi-coding-agent";
 
 export const LESSONS_TYPE = "pstack_lessons";
-// The three lines lessons.sh prints first, together, so a lesson that quotes one of them is no start. Each pattern
-// is anchored to a line start, so source code that quotes it is no match.
-export const LESSONS_START = /^user layer: .*\nproject write target: .*\nLessons follow in rising priority/m;
-// The header line lessons.sh prints. It tells an empty whole run from one the bash tool cut to its tail.
-export const LESSONS_RUN = /^Lessons follow in rising priority/m;
+// The three lines lessons.sh prints first. lessons.sh indents a lesson line that would pass for one of its own, and
+// the patterns are anchored to a line start, so neither a lesson nor source code that quotes them is a match. The
+// first line is not anchored, so output of a command chained before the script without a final newline is cut off too.
+export const LESSONS_START = /user layer: .*\nproject write target: .*\nLessons follow in rising priority/;
 // The line lessons.sh prints last. The bash tool keeps only the tail of long output, which drops the header.
 export const LESSONS_END = /^== end of lessons$/m;
 // The line lessons.sh prints before each lesson.
@@ -33,10 +32,9 @@ export default function lessonsCompaction(pi: ExtensionAPI) {
 		if (checkpoint?.type !== "compaction") return;
 		// Output a context_edit omitted or rewrote is not live and must not come back through this notice.
 		const edited = new Set(branch.flatMap((entry) => (entry.type === "context_edit" ? [entry.targetId] : [])));
-		// The output of the last run in a tool result, or undefined when there is none. One call can run the script
-		// before and after writing a lesson, a lesson can quote the end line, and output of commands chained before
-		// or after the script is stale by the time it comes back.
-		const lessonsOf = (entry: SessionEntry): string | undefined => {
+		// The last run in a tool result, or undefined when there is none. One call can run the script before and after
+		// writing a lesson, and output of commands chained before or after the script is stale by the time it comes back.
+		const lessonsOf = (entry: SessionEntry): { text: string; whole: boolean } | undefined => {
 			if (entry.type !== "message" || entry.message.role !== "toolResult" || edited.has(entry.id)) return;
 			const text = textOf(entry.message.content);
 			// Output without the last line was cut from the bottom (`| head`, a `read` of the bash tool's full-output
@@ -45,16 +43,22 @@ export default function lessonsCompaction(pi: ExtensionAPI) {
 			const end = lastMatch(text, LESSONS_END);
 			if (!end) return;
 			const upTo = end.index + end[0].length;
-			return text.slice(lastMatch(text.slice(0, upTo), LESSONS_START)?.index ?? 0, upTo);
+			const start = lastMatch(text.slice(0, upTo), LESSONS_START);
+			// Without its first lines, output counts only when the bash tool kept just its tail. A `read` of a lesson
+			// file or a `| tail` shows a part with nothing to say how much is missing. A file that quotes a whole run,
+			// read back, still passes for one: nothing in the text tells the two apart.
+			const details = entry.message.details as BashToolDetails | undefined;
+			if (!start && !(entry.message.toolName === "bash" && details?.truncation?.truncated)) return;
+			return { text: text.slice(start?.index ?? 0, upTo), whole: start !== undefined };
 		};
 		if (branch.slice(checkpointAt + 1).some(lessonsOf)) return;
 		// A run kept in the retained tail still counts as gone: Codex native replay replaces that tail.
-		let lessons: string | undefined;
-		for (let i = checkpointAt - 1; lessons === undefined && i >= 0; i--) lessons = lessonsOf(branch[i]);
-		if (lessons === undefined) return;
+		let run: ReturnType<typeof lessonsOf>;
+		for (let i = checkpointAt - 1; run === undefined && i >= 0; i--) run = lessonsOf(branch[i]);
+		if (run === undefined) return;
 		// A whole run without a lesson printed none, and a rerun like that is still live, so the check is not in lessonsOf.
 		// Output cut from the top lost its header to the length of its lessons, even if no lesson header is left.
-		if (LESSONS_RUN.test(lessons) && !LESSON_HEADER.test(lessons)) return;
+		if (run.whole && !LESSON_HEADER.test(run.text)) return;
 
 		// Every `context` handler and earlier `context_with_system` handlers may rewrite the projection this starts from.
 		// pi-subagents wraps its own custom messages, and pruning extensions trim old tool output.
@@ -86,11 +90,11 @@ export default function lessonsCompaction(pi: ExtensionAPI) {
 				"Each lesson only amends the pstack file named in its `== lesson for <file>` header; it is not that file's " +
 				`text and does not replace it. Those paths are relative to ${SKILLS_DIR}/. ` +
 				"If you are following one of those files and its own text is not in your context, read it from there." +
-				(LESSONS_RUN.test(lessons) ? "" : " The bash tool cut the start of this output, so earlier lessons are " +
+				(run.whole ? "" : " The bash tool cut the start of this output, so earlier lessons are " +
 					"missing, and the lines before the first `== lesson for` header end a lesson whose header was cut. " +
 					"To see them, run the script again and read the full-output log the bash tool names.") +
 				"\n\n" +
-				lessons +
+				run.text +
 				// When nothing follows the checkpoint this notice is the prompt, and it replaces Claude Bridge's own
 				// "continue the task" prompt for a turn that ends at a tool result.
 				"\n\nThat is the end of the repeated output. Continue where the conversation left off. " +

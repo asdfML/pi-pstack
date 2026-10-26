@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { afterAll, expect, test } from "bun:test";
-import { LESSON_HEADER, LESSONS_END, LESSONS_RUN, LESSONS_START } from "../../../extensions/lessons-compaction.ts";
+import { LESSON_HEADER, LESSONS_END, LESSONS_START } from "../../../extensions/lessons-compaction.ts";
 
 const script = join(import.meta.dir, "lessons.sh");
 const home = realpathSync(mkdtempSync(join(tmpdir(), "lessons-home-")));
@@ -53,19 +53,32 @@ test("every layer up to home is read, nearer layers last, and the nearest is the
 test("the compaction extension finds a run by its first and last lines, a whole one by its header, and not in the script's own source", () => {
 	const out = run(join(home, "ws/repo/sub")).stdout;
 	expect(out.match(LESSONS_START)?.index).toBe(0);
-	expect(out).toMatch(LESSONS_RUN);
 	// The lesson files end without a newline, and the end line still stands on its own, last.
 	expect(out.trimEnd().split("\n").at(-1)).toMatch(LESSONS_END);
 	const source = readFileSync(script, "utf8");
 	expect(source).not.toMatch(LESSONS_START);
-	expect(source).not.toMatch(LESSONS_RUN);
 	expect(source).not.toMatch(LESSONS_END);
+});
+
+test("a lesson line that would pass for one of the script's own is indented, so only the script's own lines start a line", () => {
+	const lessons = join(home, "agent/pstack/lessons/how");
+	mkdirSync(lessons, { recursive: true });
+	const own = ["user layer: /x", "project write target: none", "Lessons follow in rising priority: x", "== lesson for x", "== end of lessons"];
+	writeFileSync(join(lessons, "SKILL.md"), `QUOTING\n${own.join("\n")}\n`);
+	try {
+		const out = run(join(home, "ws/repo/sub")).stdout;
+		for (const line of own) expect(out).toContain(`\n ${line}\n`);
+		expect(out.match(/^== end of lessons$/gm)).toHaveLength(1);
+		expect(out.match(new RegExp(LESSONS_START, "g"))).toHaveLength(1);
+	} finally {
+		rmSync(lessons, { recursive: true, force: true });
+	}
 });
 
 test("the compaction extension tells a run that printed lessons from one that printed none", () => {
 	expect(run(join(home, "ws/repo/sub")).stdout).toMatch(LESSON_HEADER);
 	const none = run(outside, [], join(outside, "agent")).stdout;
-	expect(none).toMatch(LESSONS_RUN);
+	expect(none).toMatch(LESSONS_START);
 	expect(none).toMatch(LESSONS_END);
 	expect(none).not.toMatch(LESSON_HEADER);
 });
@@ -129,7 +142,7 @@ test("--create fails loudly when it cannot create the layer", () => {
 	chmodSync(locked, 0o555);
 	const failed = run(locked, ["--create"]);
 	expect(failed.status).not.toBe(0);
-	expect(failed.stdout).toMatch(LESSONS_RUN);
+	expect(failed.stdout).toMatch(LESSONS_START);
 });
 
 test("from a linked worktree, the write target is the main checkout, excluded there", () => {

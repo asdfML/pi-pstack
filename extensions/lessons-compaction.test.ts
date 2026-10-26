@@ -11,7 +11,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { removeNativeCompactionRetainedMessages, rewriteResponsesPayloadWithNativeReplay } from "pi-openai-toolkit/src/payload-rewrite.ts";
 import { serializeMessagesToResponsesInput } from "pi-openai-toolkit/src/serializer.ts";
-import { LESSON_HEADER, LESSONS_RUN, LESSONS_TYPE, SKILLS_DIR } from "./lessons-compaction.ts";
+import { LESSON_HEADER, LESSONS_START, LESSONS_TYPE, SKILLS_DIR } from "./lessons-compaction.ts";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const scratch = realpathSync(mkdtempSync(join(tmpdir(), "lessons-compaction-")));
@@ -37,12 +37,12 @@ function fixture() {
 		return projected;
 	};
 	let calls = 0;
-	const tool = (name: string, text: string, isError = false) => {
+	const tool = (name: string, text: string, isError = false, details?: unknown) => {
 		const id = `call-${++calls}`;
 		const call = manager.appendMessage({ role: "assistant", timestamp: 10 + calls,
 			content: [{ type: "toolCall", id, name, arguments: {} }] } as never);
 		const result = manager.appendMessage({ role: "toolResult", toolName: name, toolCallId: id, isError,
-			content: [{ type: "text", text }], timestamp: 10 + calls } as never);
+			content: [{ type: "text", text }], details, timestamp: 10 + calls } as never);
 		return { call, result };
 	};
 	const runLessons = (body: string | null = "PROBE-BODY", isError = false) =>
@@ -315,17 +315,17 @@ async function bashLessons(lessons: Record<string, string>, pipe = "") {
 	const { content, details } = await createBashTool(scratch).execute("lessons",
 		{ command: `PI_CODING_AGENT_DIR=${agent} sh ${SKILLS_DIR}/poteto-mode/scripts/lessons.sh${pipe}` });
 	if (details?.fullOutputPath) rmSync(details.fullOutputPath, { force: true });
-	return content.map((c: any) => c.text).join("\n");
+	return { text: content.map((c: any) => c.text).join("\n"), details };
 }
 const longLesson = Array.from({ length: DEFAULT_MAX_LINES }, (_, i) => `line ${i}`).join("\n");
 
 test("a run the bash tool cut to its tail still counts", async () => {
 	const cut = await bashLessons({ "arena/SKILL.md": longLesson, "how/SKILL.md": "TAIL-LESSON\n" });
-	expect(cut).not.toMatch(LESSONS_RUN);
-	expect(cut).toContain("[Showing lines ");
+	expect(cut.text).not.toMatch(LESSONS_START);
+	expect(cut.text).toContain("[Showing lines ");
 
 	const before = fixture();
-	before.tool("bash", cut);
+	before.tool("bash", cut.text, false, cut.details);
 	before.manager.appendCompaction("Compacted", null, 1000);
 	const notice = notices(await before.project())[0].content;
 	expect(notice).toContain("TAIL-LESSON");
@@ -335,25 +335,47 @@ test("a run the bash tool cut to its tail still counts", async () => {
 	const after = fixture();
 	after.runLessons();
 	after.manager.appendCompaction("Compacted", null, 1000);
-	after.tool("bash", cut);
+	after.tool("bash", cut.text, false, cut.details);
 	expect(notices(await after.project())).toHaveLength(0);
 
 	// One lesson longer than the limit leaves no lesson header in the output.
 	const single = await bashLessons({ "how/SKILL.md": `${longLesson}\nSINGLE-LESSON\n` });
-	expect(single).not.toMatch(LESSON_HEADER);
+	expect(single.text).not.toMatch(LESSON_HEADER);
 	const alone = fixture();
-	alone.tool("bash", single);
+	alone.tool("bash", single.text, false, single.details);
 	alone.manager.appendCompaction("Compacted", null, 1000);
 	expect(notices(await alone.project())[0].content).toContain("SINGLE-LESSON");
+
+	// Sessions from before lessons.sh indented quotes hold such a cut with the quote at a line start.
+	const unindented = fixture();
+	const header = "```\nLessons follow in rising priority: x\n```\n";
+	unindented.tool("bash", `line 9\n${header}OLD-QUOTED-CUT\n${end}`, false, { truncation: { truncated: true } });
+	unindented.manager.appendCompaction("Compacted", null, 1000);
+	const old = notices(await unindented.project())[0].content;
+	expect(old).toContain("OLD-QUOTED-CUT");
+	expect(old).toContain("The bash tool cut the start of this output");
+
+	// The quote survives the cut, and the lesson headers do not.
+	for (const lessons of [{ "how/SKILL.md": `${longLesson}\n${sample}QUOTED-CUT\n` } as Record<string, string>,
+		{ "arena/SKILL.md": `${longLesson}\n${sample}`, "how/SKILL.md": "QUOTED-CUT\n" }]) {
+		const quoted = await bashLessons(lessons);
+		expect(quoted.text).toContain("Lessons follow in rising priority: a later lesson wins.");
+		const h = fixture();
+		h.tool("bash", quoted.text, false, quoted.details);
+		h.manager.appendCompaction("Compacted", null, 1000);
+		const notice = notices(await h.project())[0].content;
+		expect(notice).toContain("QUOTED-CUT");
+		expect(notice).toContain("The bash tool cut the start of this output");
+	}
 });
 
 test("output cut from the bottom is not a run, so it neither hides nor replaces the whole run", async () => {
 	const lessons = { "arena/SKILL.md": "ARENA-1\nARENA-2\nARENA-3\nARENA-4\nARENA-5\nARENA-6\n", "how/SKILL.md": "HOW-LESSON\n" };
-	const whole = await bashLessons(lessons);
+	const { text: whole } = await bashLessons(lessons);
 	// `| head -3` ends before the first lesson, `| head` inside it, as a `read` of the full-output log would.
 	for (const pipe of [" | head -3", " | head"]) {
-		const top = await bashLessons(lessons, pipe);
-		expect(top).toMatch(LESSONS_RUN);
+		const { text: top } = await bashLessons(lessons, pipe);
+		expect(top).toMatch(LESSONS_START);
 		expect(top).not.toContain("HOW-LESSON");
 
 		const before = fixture();
@@ -372,18 +394,19 @@ test("output cut from the bottom is not a run, so it neither hides nor replaces 
 
 test("output of commands chained before or after the run does not come back", async () => {
 	const h = fixture();
-	h.tool("bash", `STALE-BEFORE\n${await bashLessons({ "how/SKILL.md": "CHAINED-LESSON\n" }, "; echo STALE-STATUS")}`);
+	h.tool("bash", `STALE-BEFORE\nSTALE-NO-NEWLINE${(await bashLessons({ "how/SKILL.md": "CHAINED-LESSON\n" }, "; echo STALE-STATUS")).text}`);
 	h.manager.appendCompaction("Compacted", null, 1000);
 	const notice = notices(await h.project())[0].content;
 	expect(notice).toContain("CHAINED-LESSON");
 	expect(notice).toContain("user layer: ");
 	expect(notice).not.toContain("STALE-BEFORE");
+	expect(notice).not.toContain("STALE-NO-NEWLINE");
 	expect(notice).not.toContain("STALE-STATUS");
 	expect(notice).not.toContain("cut the start");
 });
 
 test("with two runs in one tool result, as when a lesson is written between them, the second one counts", async () => {
-	const run = (lessons: Record<string, string>) => bashLessons(lessons);
+	const run = async (lessons: Record<string, string>) => (await bashLessons(lessons)).text;
 	const once = async (first: string, second: string) => {
 		const h = fixture();
 		h.tool("bash", `${first}\n${second}`);
@@ -396,15 +419,61 @@ test("with two runs in one tool result, as when a lesson is written between them
 	expect(updated[0]).toContain("NEW-LESSON");
 	expect(updated[0]).not.toContain("REMOVED-LESSON");
 	expect(await once(await run({ "arena/SKILL.md": "REMOVED-LESSON\n" }), await run({}))).toHaveLength(0);
+	const headAfter = (await bashLessons({ "how/SKILL.md": "HEAD-LESSON\n" }, " | head -3")).text;
+	expect((await once(await run({ "how/SKILL.md": "WHOLE-LESSON\n" }), headAfter))[0]).toContain("WHOLE-LESSON");
 });
 
-test("a lesson that quotes the first and last lines does not cut the lessons after it", async () => {
-	const quoting = "QUOTING-LESSON\n```\nuser layer: /example\n== end of lessons\n```\nQUOTED-TAIL\n";
-	const h = fixture();
-	h.tool("bash", await bashLessons({ "arena/SKILL.md": quoting, "how/SKILL.md": "HOW-LESSON\n" }));
-	h.manager.appendCompaction("Compacted", null, 1000);
-	const notice = notices(await h.project())[0].content;
-	for (const token of ["QUOTING-LESSON", "QUOTED-TAIL", "HOW-LESSON"]) expect(notice).toContain(token);
+// A lesson that documents the output quotes it whole.
+const sample = "```\nuser layer: /x\nproject write target: none\nLessons follow in rising priority: a later lesson wins.\n\n" +
+	"== lesson for how/SKILL.md from /x\nbody\n\n== end of lessons\n```\n";
+
+test("a lesson that quotes the output neither starts nor ends a run, first or last", async () => {
+	for (const lessons of [{ "arena/SKILL.md": `QUOTING-LESSON\n${sample}QUOTED-TAIL\n`, "how/SKILL.md": "HOW-LESSON\n" } as Record<string, string>,
+		{ "arena/SKILL.md": "ARENA-LESSON\n", "how/SKILL.md": `QUOTING-LESSON\n${sample}QUOTED-TAIL\n` }]) {
+		const h = fixture();
+		h.tool("bash", (await bashLessons(lessons)).text);
+		h.manager.appendCompaction("Compacted", null, 1000);
+		const notice = notices(await h.project())[0].content;
+		for (const text of Object.values(lessons)) expect(notice).toContain(text.split("\n")[0]);
+		expect(notice).toContain("QUOTED-TAIL");
+		expect(notice).not.toContain("cut the start");
+	}
+
+	// `| head` that stops at the quoted end line.
+	const lessons = { "arena/SKILL.md": `QUOTING-LESSON\n${sample}`, "how/SKILL.md": "HIGH-PRIORITY-LESSON\n" };
+	const whole = (await bashLessons(lessons)).text;
+	const top = (await bashLessons(lessons, " | sed '/== end of lessons/q'")).text;
+	expect(top).not.toContain("HIGH-PRIORITY-LESSON");
+	const before = fixture();
+	before.tool("bash", whole);
+	before.tool("bash", top);
+	before.manager.appendCompaction("Compacted", null, 1000);
+	expect(notices(await before.project())[0].content).toContain("HIGH-PRIORITY-LESSON");
+	const after = fixture();
+	after.tool("bash", whole);
+	after.manager.appendCompaction("Compacted", null, 1000);
+	after.tool("bash", top);
+	expect(notices(await after.project())[0].content).toContain("HIGH-PRIORITY-LESSON");
+});
+
+test("a part of a run that the bash tool did not cut, such as a read of a lesson file or `| tail`, is not a run", async () => {
+	const quoting = "QUOTING-LESSON\n```\n== end of lessons\n```\n";
+	const whole = (await bashLessons({ "arena/SKILL.md": quoting, "how/SKILL.md": "HOW-LESSON\n" })).text;
+	const tail = (await bashLessons({ "how/SKILL.md": "TAIL-ONLY\n" }, " | tail -n 3")).text;
+	// The read tool cuts long files too, but keeps their head.
+	const cutRead = { truncation: { truncated: true } };
+	for (const [name, part, details] of [["read", quoting, cutRead], ["bash", tail, undefined]] as const) {
+		const before = fixture();
+		before.tool("bash", whole);
+		before.tool(name, part, false, details);
+		before.manager.appendCompaction("Compacted", null, 1000);
+		expect(notices(await before.project())[0].content).toContain("HOW-LESSON");
+		const after = fixture();
+		after.tool("bash", whole);
+		after.manager.appendCompaction("Compacted", null, 1000);
+		after.tool(name, part, false, details);
+		expect(notices(await after.project())[0].content).toContain("HOW-LESSON");
+	}
 });
 
 test("tool results with null or missing content, which old session files can hold, do not stop the notice", async () => {
