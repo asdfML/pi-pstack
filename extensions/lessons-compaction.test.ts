@@ -11,7 +11,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { removeNativeCompactionRetainedMessages, rewriteResponsesPayloadWithNativeReplay } from "pi-openai-toolkit/src/payload-rewrite.ts";
 import { serializeMessagesToResponsesInput } from "pi-openai-toolkit/src/serializer.ts";
-import { LESSON_HEADER, LESSONS_START, LESSONS_TYPE, SKILLS_DIR } from "./lessons-compaction.ts";
+import { LESSON_HEADER, LESSONS_START, LESSONS_TYPE, RUNS_SCRIPT, SKILLS_DIR } from "./lessons-compaction.ts";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const scratch = realpathSync(mkdtempSync(join(tmpdir(), "lessons-compaction-")));
@@ -210,7 +210,8 @@ test("in a session, tool results an earlier handler trims are not split from the
 	const h = fixture();
 	const calls = [["c1", "bash", lessonsOutput("PROBE-BODY")], ["c2", "read", "file one"], ["c3", "read", "file two"]];
 	const batch = h.manager.appendMessage({ role: "assistant", timestamp: 20,
-		content: calls.map(([id, name]) => ({ type: "toolCall", id, name, arguments: { command: "sh lessons.sh" } })) } as never);
+		content: calls.map(([id, name]) => ({ type: "toolCall", id, name,
+			arguments: name === "bash" ? { command: "sh lessons.sh" } : {} })) } as never);
 	for (const [id, name, text] of calls) {
 		h.manager.appendMessage({ role: "toolResult", toolName: name, toolCallId: id, isError: false,
 			content: [{ type: "text", text }], timestamp: 21 } as never);
@@ -463,10 +464,14 @@ test("a lesson file shown by any tool, and a part of a run the bash tool did not
 	const quoting = "QUOTING-LESSON\n```\n== end of lessons\n```\n";
 	const whole = (await bashLessons({ "arena/SKILL.md": quoting, "how/SKILL.md": "HOW-LESSON\n" })).text;
 	const tail = (await bashLessons({ "how/SKILL.md": "TAIL-ONLY\n" }, " | tail -n 3")).text;
-	// Other tools cut long output too, but not to its tail.
 	const cut = { truncation: { truncated: true } };
 	const shown = `QUOTING-LESSON\n${sample}`;
-	const parts = [["grep", quoting, cut, ""], ["read", shown, undefined, ""], ["bash", shown, undefined, "cat arena/SKILL.md"],
+	const script = `${SKILLS_DIR}/poteto-mode/scripts/lessons.sh`;
+	// The commands that only name the script are ones reviewers of this repo ran on its reports and the script.
+	const parts = [["read", shown, undefined, ""], ["bash", shown, undefined, "cat arena/SKILL.md"],
+		["bash", shown, undefined, `cat review/reviewer-c.md ${script}`],
+		["bash", quoting, cut, `cat review/round*/reviewer-*.md ${script}`],
+		["bash", quoting, cut, `grep -h -B 12 'end of lessons' ${script} review/reviewer-c.md`],
 		["bash", tail, undefined, "sh lessons.sh | tail -n 3"]] as const;
 	for (const [name, part, details, command] of parts) {
 		const before = fixture();
@@ -480,6 +485,34 @@ test("a lesson file shown by any tool, and a part of a run the bash tool did not
 		after.tool(name, part, false, details, command);
 		expect(notices(await after.project())[0].content).toContain("HOW-LESSON");
 	}
+});
+
+test("a command runs the script when the script's path is its command word, and not when it only names the script", () => {
+	const runs = ["sh /abs/skills/poteto-mode/scripts/lessons.sh", "/abs/scripts/lessons.sh", "sh lessons.sh --create",
+		"cd ~/x && sh skills/poteto-mode/scripts/lessons.sh | head -c 400", "PI_CODING_AGENT_DIR=/tmp/a sh /a/lessons.sh",
+		"(cd x; ./lessons.sh)", "bash -x /a/lessons.sh", "sh \"$D/lessons.sh\"; echo done", "echo $(sh /a/lessons.sh)",
+		"git status\nsh /a/lessons.sh", "env LC_ALL=C sh /a/lessons.sh"];
+	const names = ["cat report.md /a/lessons.sh", "rg -n 'end of lessons' /a/lessons.sh review/", "git diff -- /a/lessons.sh",
+		"sed -n 1,40p /a/lessons.sh", "shellcheck /a/lessons.sh", "sh /a/my-lessons.sh", "sh /a/lessons.sh.bak",
+		"cat /a/lessons.shared.md", "bun test lessons.test.ts", "sh -c 'cat r.md /a/lessons.sh'"];
+	expect(runs.filter((command) => !RUNS_SCRIPT.test(command))).toEqual([]);
+	expect(names.filter((command) => RUNS_SCRIPT.test(command))).toEqual([]);
+});
+
+test("results are paired with their calls by position, so empty call ids do not make a shown file a run", async () => {
+	const h = fixture();
+	const result = (text: string) => h.manager.appendMessage({ role: "toolResult", toolName: "bash", toolCallId: "",
+		isError: false, content: [{ type: "text", text }], timestamp: 41 } as never);
+	h.manager.appendMessage({ role: "assistant", timestamp: 40,
+		content: [{ type: "toolCall", id: "", name: "bash", arguments: { command: "sh lessons.sh" } }] } as never);
+	result(lessonsOutput("REAL-LESSON"));
+	h.manager.appendMessage({ role: "assistant", timestamp: 42,
+		content: [{ type: "toolCall", id: "", name: "bash", arguments: { command: "cat how/SKILL.md" } }] } as never);
+	result(`SHOWN\n${sample}`);
+	h.manager.appendCompaction("Compacted", null, 1000);
+	const [notice] = notices(await h.project());
+	expect(notice.content).toContain("REAL-LESSON");
+	expect(notice.content).not.toContain("SHOWN");
 });
 
 test("tool results with null or missing content, which old session files can hold, do not stop the notice", async () => {

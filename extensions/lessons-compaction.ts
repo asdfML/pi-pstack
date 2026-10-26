@@ -11,6 +11,10 @@ export const LESSONS_START = /user layer: .*\nproject write target: .*\nLessons 
 export const LESSONS_END = /(?<![^\n])== end of lessons(?![^\n])/;
 // The line lessons.sh prints before each lesson.
 export const LESSON_HEADER = /(?<![^\n])== lesson for /;
+// A command that runs lessons.sh: its path is the command word, after any env assignments, wrappers and shells with
+// their flags. A command that only names it, as a file argument (`cat`, `rg`, `git diff`) or a longer name, does not.
+export const RUNS_SCRIPT =
+	/(?:^|[;&|(`\n]|\$\()\s*(?:(?:\w+=\S*|exec|command|time|env|(?:ba|da|z)?sh|-\S+)\s+)*["']?(?:[^\s;&|"'`]*\/)?lessons\.sh(?![\w.-])/;
 export const SKILLS_DIR = fileURLToPath(new URL("../skills", import.meta.url));
 const SCRIPT = `${SKILLS_DIR}/poteto-mode/scripts/lessons.sh`;
 
@@ -33,22 +37,28 @@ export default function lessonsCompaction(pi: ExtensionAPI) {
 		if (checkpoint?.type !== "compaction") return;
 		// Output a context_edit omitted or rewrote is not live and must not come back through this notice.
 		const edited = new Set(branch.flatMap((entry) => (entry.type === "context_edit" ? [entry.targetId] : [])));
-		// Tool calls that ran the script. Any tool can show a lesson file that quotes a whole run, `cat` and `read`
-		// included, and only the call tells the two apart. A command that runs the script and then shows such a file
-		// still passes for a run.
-		const ranScript = new Set(branch.flatMap((entry) => (entry.type === "message" && entry.message.role === "assistant"
-			? (entry.message.content ?? []).flatMap((c) => (c.type === "toolCall"
-				&& String(c.arguments?.command ?? "").includes("lessons.sh") ? [c.id] : []))
-			: [])));
+		// Results of tool calls that ran the script. Any tool can show a lesson file that quotes a whole run, and only
+		// the call tells the two apart. A command that runs the script and then shows such a file still passes for a
+		// run. Results follow the message that made their calls, so they are paired by position: some providers leave
+		// call ids empty.
+		const runs = new Set<string>();
+		let calls = new Set<string>();
+		for (const entry of branch) {
+			if (entry.type !== "message") continue;
+			if (entry.message.role === "assistant") {
+				calls = new Set((entry.message.content ?? []).flatMap((c) => (c.type === "toolCall"
+					&& RUNS_SCRIPT.test(String(c.arguments?.command ?? "")) ? [c.id] : [])));
+			} else if (entry.message.role === "toolResult" && calls.has(entry.message.toolCallId)) runs.add(entry.id);
+		}
 		// The last run in a tool result, or undefined when there is none. One call can run the script before and after
 		// writing a lesson, and output of commands chained before or after the script is stale by the time it comes back.
 		const lessonsOf = (entry: SessionEntry): { text: string; whole: boolean } | undefined => {
-			if (entry.type !== "message" || entry.message.role !== "toolResult" || !ranScript.has(entry.message.toolCallId)
-				|| edited.has(entry.id)) return;
+			if (entry.type !== "message" || entry.message.role !== "toolResult" || !runs.has(entry.id) || edited.has(entry.id)) {
+				return;
+			}
 			const text = textOf(entry.message.content);
 			// Output without the last line was cut from the bottom (`| head`) and may lack the lessons with the highest
-			// priority. Runs of the script from before it printed that line
-			// do not count either.
+			// priority. Runs of the script from before it printed that line do not count either.
 			const end = lastMatch(text, LESSONS_END);
 			if (!end) return;
 			const upTo = end.index + end[0].length;
