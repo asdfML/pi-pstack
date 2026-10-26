@@ -25,6 +25,10 @@ const emptyOutput = head + end;
 const lessonsOutput = (body: string) =>
 	`${head}\n== lesson for arena/SKILL.md from /agent/pstack/lessons\n## Probe lesson\n\n${body}\n${end}`;
 
+// A lesson that documents the output quotes it whole.
+const sample = "```\nuser layer: /x\nproject write target: none\nLessons follow in rising priority: a later lesson wins.\n\n" +
+	"== lesson for how/SKILL.md from /x\nbody\n\n== end of lessons\n```\n";
+
 function fixture() {
 	const manager = SessionManager.inMemory(scratch);
 	const userId = manager.appendMessage({ role: "user", content: "Start", timestamp: 1 });
@@ -37,10 +41,10 @@ function fixture() {
 		return projected;
 	};
 	let calls = 0;
-	const tool = (name: string, text: string, isError = false, details?: unknown) => {
+	const tool = (name: string, text: string, isError = false, details?: unknown, command = "sh lessons.sh") => {
 		const id = `call-${++calls}`;
 		const call = manager.appendMessage({ role: "assistant", timestamp: 10 + calls,
-			content: [{ type: "toolCall", id, name, arguments: {} }] } as never);
+			content: [{ type: "toolCall", id, name, arguments: name === "bash" ? { command } : {} }] } as never);
 		const result = manager.appendMessage({ role: "toolResult", toolName: name, toolCallId: id, isError,
 			content: [{ type: "text", text }], details, timestamp: 10 + calls } as never);
 		return { call, result };
@@ -206,7 +210,7 @@ test("in a session, tool results an earlier handler trims are not split from the
 	const h = fixture();
 	const calls = [["c1", "bash", lessonsOutput("PROBE-BODY")], ["c2", "read", "file one"], ["c3", "read", "file two"]];
 	const batch = h.manager.appendMessage({ role: "assistant", timestamp: 20,
-		content: calls.map(([id, name]) => ({ type: "toolCall", id, name, arguments: {} })) } as never);
+		content: calls.map(([id, name]) => ({ type: "toolCall", id, name, arguments: { command: "sh lessons.sh" } })) } as never);
 	for (const [id, name, text] of calls) {
 		h.manager.appendMessage({ role: "toolResult", toolName: name, toolCallId: id, isError: false,
 			content: [{ type: "text", text }], timestamp: 21 } as never);
@@ -282,7 +286,7 @@ test("new work another hook rewrote does not move the notice; with nothing kept 
 	expect(roles(projected).at(-1)).toBe("notice");
 });
 
-test("reading files that quote the first or last line is not a run, before or after the checkpoint", async () => {
+test("output that quotes the first or last line, in source or a note, is not a run even from a call that ran the script", async () => {
 	const sources = [`${SKILLS_DIR}/poteto-mode/scripts/lessons.sh`,
 		new URL("./lessons-compaction.ts", import.meta.url), new URL("./lessons-compaction.test.ts", import.meta.url)]
 		.map((path) => readFileSync(path, "utf8"));
@@ -293,14 +297,14 @@ test("reading files that quote the first or last line is not a run, before or af
 		expect(source).toContain("Lessons follow in rising priority");
 		expect(source).toContain("== end of lessons");
 		const before = fixture();
-		before.tool("read", source);
+		before.tool("bash", source);
 		before.manager.appendCompaction("Compacted", null, 1000);
 		expect(notices(await before.project())).toHaveLength(0);
 
 		const after = fixture();
 		after.runLessons();
 		after.manager.appendCompaction("Compacted", null, 1000);
-		after.tool("read", source);
+		after.tool("bash", source);
 		expect(notices(await after.project())).toHaveLength(1);
 	}
 });
@@ -423,10 +427,6 @@ test("with two runs in one tool result, as when a lesson is written between them
 	expect((await once(await run({ "how/SKILL.md": "WHOLE-LESSON\n" }), headAfter))[0]).toContain("WHOLE-LESSON");
 });
 
-// A lesson that documents the output quotes it whole.
-const sample = "```\nuser layer: /x\nproject write target: none\nLessons follow in rising priority: a later lesson wins.\n\n" +
-	"== lesson for how/SKILL.md from /x\nbody\n\n== end of lessons\n```\n";
-
 test("a lesson that quotes the output neither starts nor ends a run, first or last", async () => {
 	for (const lessons of [{ "arena/SKILL.md": `QUOTING-LESSON\n${sample}QUOTED-TAIL\n`, "how/SKILL.md": "HOW-LESSON\n" } as Record<string, string>,
 		{ "arena/SKILL.md": "ARENA-LESSON\n", "how/SKILL.md": `QUOTING-LESSON\n${sample}QUOTED-TAIL\n` }]) {
@@ -459,23 +459,25 @@ test("a lesson that quotes the output neither starts nor ends a run, first or la
 	}
 });
 
-test("a part of a run that the bash tool did not cut, such as a read of a lesson file or `| tail`, is not a run", async () => {
+test("a lesson file shown by any tool, and a part of a run the bash tool did not cut, are not runs", async () => {
 	const quoting = "QUOTING-LESSON\n```\n== end of lessons\n```\n";
 	const whole = (await bashLessons({ "arena/SKILL.md": quoting, "how/SKILL.md": "HOW-LESSON\n" })).text;
 	const tail = (await bashLessons({ "how/SKILL.md": "TAIL-ONLY\n" }, " | tail -n 3")).text;
 	// Other tools cut long output too, but not to its tail.
 	const cut = { truncation: { truncated: true } };
-	const parts = [["grep", quoting, cut], ["read", `QUOTING-LESSON\n${sample}`, undefined], ["bash", tail, undefined]] as const;
-	for (const [name, part, details] of parts) {
+	const shown = `QUOTING-LESSON\n${sample}`;
+	const parts = [["grep", quoting, cut, ""], ["read", shown, undefined, ""], ["bash", shown, undefined, "cat arena/SKILL.md"],
+		["bash", tail, undefined, "sh lessons.sh | tail -n 3"]] as const;
+	for (const [name, part, details, command] of parts) {
 		const before = fixture();
 		before.tool("bash", whole);
-		before.tool(name, part, false, details);
+		before.tool(name, part, false, details, command);
 		before.manager.appendCompaction("Compacted", null, 1000);
 		expect(notices(await before.project())[0].content).toContain("HOW-LESSON");
 		const after = fixture();
 		after.tool("bash", whole);
 		after.manager.appendCompaction("Compacted", null, 1000);
-		after.tool(name, part, false, details);
+		after.tool(name, part, false, details, command);
 		expect(notices(await after.project())[0].content).toContain("HOW-LESSON");
 	}
 });
@@ -484,7 +486,8 @@ test("tool results with null or missing content, which old session files can hol
 	const h = fixture();
 	h.runLessons();
 	h.manager.appendMessage({ role: "assistant", timestamp: 30, content: [
-		{ type: "toolCall", id: "n1", name: "bash", arguments: {} }, { type: "toolCall", id: "n2", name: "bash", arguments: {} }] } as never);
+		{ type: "toolCall", id: "n1", name: "bash", arguments: { command: "sh lessons.sh" } },
+		{ type: "toolCall", id: "n2", name: "bash", arguments: { command: "sh lessons.sh" } }] } as never);
 	h.manager.appendMessage({ role: "toolResult", toolName: "bash", toolCallId: "n1", isError: false, content: null, timestamp: 31 } as never);
 	h.manager.appendMessage({ role: "toolResult", toolName: "bash", toolCallId: "n2", isError: false, timestamp: 32 } as never);
 	h.manager.appendCompaction("Compacted", null, 1000);

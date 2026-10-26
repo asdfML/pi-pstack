@@ -33,26 +33,30 @@ export default function lessonsCompaction(pi: ExtensionAPI) {
 		if (checkpoint?.type !== "compaction") return;
 		// Output a context_edit omitted or rewrote is not live and must not come back through this notice.
 		const edited = new Set(branch.flatMap((entry) => (entry.type === "context_edit" ? [entry.targetId] : [])));
+		// Tool calls that ran the script. Any tool can show a lesson file that quotes a whole run, `cat` and `read`
+		// included, and only the call tells the two apart. A command that runs the script and then shows such a file
+		// still passes for a run.
+		const ranScript = new Set(branch.flatMap((entry) => (entry.type === "message" && entry.message.role === "assistant"
+			? (entry.message.content ?? []).flatMap((c) => (c.type === "toolCall"
+				&& String(c.arguments?.command ?? "").includes("lessons.sh") ? [c.id] : []))
+			: [])));
 		// The last run in a tool result, or undefined when there is none. One call can run the script before and after
 		// writing a lesson, and output of commands chained before or after the script is stale by the time it comes back.
 		const lessonsOf = (entry: SessionEntry): { text: string; whole: boolean } | undefined => {
-			// A `read` shows a file, and a lesson file can quote a whole run. The bash tool's full-output log is longer
-			// than the read tool shows at once, so a `read` of it is never the whole run either.
-			if (entry.type !== "message" || entry.message.role !== "toolResult" || entry.message.toolName === "read"
+			if (entry.type !== "message" || entry.message.role !== "toolResult" || !ranScript.has(entry.message.toolCallId)
 				|| edited.has(entry.id)) return;
 			const text = textOf(entry.message.content);
-			// Output without the last line was cut from the bottom (`| head`, a `read` of the bash tool's full-output
-			// log) and may lack the lessons with the highest priority. Runs of the script from before it printed that line
+			// Output without the last line was cut from the bottom (`| head`) and may lack the lessons with the highest
+			// priority. Runs of the script from before it printed that line
 			// do not count either.
 			const end = lastMatch(text, LESSONS_END);
 			if (!end) return;
 			const upTo = end.index + end[0].length;
 			const start = lastMatch(text.slice(0, upTo), LESSONS_START);
-			// Without its first lines, output counts only when the bash tool kept just its tail. A `read` of a lesson
-			// file or a `| tail` shows a part with nothing to say how much is missing. A `cat` of a lesson file that
-			// quotes a whole run still passes for one: nothing in the text tells the two apart.
+			// Without its first lines, output counts only when the bash tool kept just its tail. A `| tail` shows a part
+			// with nothing to say how much is missing.
 			const details = entry.message.details as BashToolDetails | undefined;
-			if (!start && !(entry.message.toolName === "bash" && details?.truncation?.truncated)) return;
+			if (!start && !details?.truncation?.truncated) return;
 			return { text: text.slice(start?.index ?? 0, upTo), whole: start !== undefined };
 		};
 		if (branch.slice(checkpointAt + 1).some(lessonsOf)) return;
