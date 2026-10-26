@@ -11,22 +11,42 @@ export const LESSONS_START = /user layer: .*\nproject write target: .*\nLessons 
 export const LESSONS_END = /(?<![^\n])== end of lessons(?![^\n])/;
 // The line lessons.sh prints before each lesson.
 export const LESSON_HEADER = /(?<![^\n])== lesson for /;
-const WRAPPERS = new Set(["exec", "command", "time", "env", "nice", "nohup", "sudo", "xargs", "timeout"]);
+const WRAPPERS = new Set(["exec", "command", "time", "env", "nice", "nohup", "sudo", "xargs", "timeout", "source", "."]);
 const SHELLS = new Set(["sh", "bash", "dash", "zsh", "ksh"]);
 // Words that can come before a command word in shell grammar.
 const RESERVED = new Set(["{", "!", "if", "then", "else", "elif", "while", "until", "do"]);
+const HEREDOC = /^<<(-?)[ \t]*((?:'[^']*'|"[^"]*"|\\.|[^\s;&|()<>'"\\])+)/;
+
+// The index of the `)` or backtick that closes a command substitution whose text starts at `from`.
+function substitutionEnd(line: string, from: number, close: string): number {
+	let depth = 0;
+	let quote = "";
+	for (let i = from; i < line.length; i++) {
+		const c = line[i];
+		if (c === "\\" && quote !== "'") i++;
+		else if (quote) {
+			if (c === quote) quote = "";
+		} else if (c === "'" || c === '"') quote = c;
+		else if (c === close && depth === 0) return i;
+		else if (close === ")" && c === "(") depth++;
+		else if (close === ")" && c === ")") depth--;
+	}
+	return line.length;
+}
 
 // The simple commands of a shell command line, as words with quotes removed. Quoted text stays inside its word, so
-// code passed to another interpreter is not split into commands, and comments and heredoc bodies are skipped. `$(` and a backtick
-// only split, which is enough to find a command word inside them.
+// code passed to another interpreter is not split into commands, and comments, redirections and heredoc bodies are
+// skipped. The commands inside `$(…)` and backticks are read on their own, and the substitution stays part of its word.
 function simpleCommands(line: string): string[][] {
 	const commands: string[][] = [];
 	let words: string[] = [];
 	let word: string | undefined;
 	let quote = "";
-	const heredocs: string[] = [];
+	const heredocs: { end: string; tabs: boolean }[] = [];
+	let target = false;
 	const endWord = () => {
-		if (word !== undefined) words.push(word);
+		if (word !== undefined && !target) words.push(word);
+		if (word !== undefined) target = false;
 		word = undefined;
 	};
 	const endCommand = () => {
@@ -36,29 +56,53 @@ function simpleCommands(line: string): string[][] {
 	};
 	for (let i = 0; i < line.length; i++) {
 		const c = line[i];
-		const heredoc = quote ? null : /^<<-?[ \t]*(['"]?)(\w+)\1/.exec(line.slice(i));
-		if (quote) {
+		const opens = c === "`" ? 1 : c === "$" && line[i + 1] === "(" ? 2 : 0;
+		const heredoc = quote ? null : HEREDOC.exec(line.slice(i));
+		if (quote === "'") {
 			if (c === quote) quote = "";
-			else word += c === "\\" && quote === '"' && i + 1 < line.length ? line[++i] : c;
+			else word += c;
+		} else if (c === "\\" && line[i + 1] === "\n") i++;
+		else if (opens) {
+			const end = substitutionEnd(line, i + opens, opens === 1 ? "`" : ")");
+			commands.push(...simpleCommands(line.slice(i + opens, end)));
+			word = (word ?? "") + line.slice(i, end + 1);
+			i = end;
+		} else if (quote) {
+			if (c === quote) quote = "";
+			else word += c === "\\" && i + 1 < line.length ? line[++i] : c;
 		} else if (heredoc) {
 			endWord();
-			heredocs.push(heredoc[2]);
+			const end = heredoc[2].replace(/'([^']*)'|"([^"]*)"|\\(.)/g, (_, single, double, escaped) =>
+				single ?? double ?? escaped);
+			heredocs.push({ end, tabs: heredoc[1] === "-" });
 			i += heredoc[0].length - 1;
 		} else if (c === "'" || c === '"') {
 			quote = c;
 			word ??= "";
+		} else if (c === "<" || c === ">") {
+			// A file descriptor before the operator is part of it, and the word after it is its target.
+			if (/^\d+$/.test(word ?? "")) word = undefined;
+			endWord();
+			const operator = /^[<>]+[&|]?(?:\d+|-)?/.exec(line.slice(i))![0];
+			target = !/[\d-]$/.test(operator);
+			i += operator.length - 1;
 		} else if (c === "#" && word === undefined) {
 			const newline = line.indexOf("\n", i);
 			i = (newline < 0 ? line.length : newline) - 1;
 		} else if (c === "\\") word = (word ?? "") + (line[++i] ?? "");
 		else if (c === "\n") {
 			endCommand();
-			for (const end of heredocs.splice(0)) {
-				const close = new RegExp(`\n\t*${end}(?=\n|$)`).exec(line.slice(i));
-				i = close ? i + close.index + close[0].length : line.length;
+			for (const { end, tabs } of heredocs.splice(0)) {
+				while (i < line.length) {
+					const from = i + 1;
+					i = line.indexOf("\n", from);
+					if (i < 0) i = line.length;
+					const body = line.slice(from, i);
+					if ((tabs ? body.replace(/^\t+/, "") : body) === end) break;
+				}
 			}
 		} else if (/\s/.test(c)) endWord();
-		else if (";&|()`".includes(c)) endCommand();
+		else if (";&|()".includes(c)) endCommand();
 		else word = (word ?? "") + c;
 	}
 	endCommand();
@@ -67,21 +111,25 @@ function simpleCommands(line: string): string[][] {
 
 // Whether a command line runs lessons.sh: in one of its simple commands the script's path is the command word, after
 // any reserved words, env assignments, wrappers with their flags and numbers, and a shell with its flags, or it runs
-// in the string a shell gets with `-c`. A command that only names the script, as a file argument (`cat`, `rg`, `git diff`), in a variable or in
-// code for another interpreter, does not.
+// in the string a shell gets with `-c`. A command that only names the script, as a file argument (`cat`, `rg`,
+// `git diff`), in a variable or in code for another interpreter, does not.
 export function runsScript(line: string): boolean {
 	return simpleCommands(line).some((words) => {
 		const name = (at: number) => words[at]?.split("/").at(-1) ?? "";
 		let i = 0;
+		let wrapped = false;
 		while (i < words.length && (RESERVED.has(words[i]) || /^\w+=/.test(words[i]) || WRAPPERS.has(name(i))
-			|| words[i].startsWith("-") || /^\d/.test(words[i]))) {
+			|| (wrapped && (words[i].startsWith("-") || /^\d/.test(words[i]))))) {
+			wrapped ||= WRAPPERS.has(name(i));
 			// The value of `env -u`, `sudo -u`, `nice -n`, `timeout -s` and the like.
 			i += /^-[ugnskC]$/.test(words[i]) ? 2 : 1;
 		}
 		if (SHELLS.has(name(i))) {
-			for (i++; words[i]?.startsWith("-"); i++) if (/^-\w*c/.test(words[i])) return runsScript(words[i + 1] ?? "");
+			for (i++; /^[-+]/.test(words[i] ?? ""); i += /^[-+][oO]$/.test(words[i]) ? 2 : 1) {
+				if (/^-\w*c/.test(words[i])) return runsScript(words[i + 1] ?? "");
+			}
 		}
-		return /(?:^|\/)lessons\.sh$/.test(words[i] ?? "");
+		return /^(?:lessons\.sh|(?!-)[^=]*\/lessons\.sh)$/.test(words[i] ?? "");
 	});
 }
 export const SKILLS_DIR = fileURLToPath(new URL("../skills", import.meta.url));

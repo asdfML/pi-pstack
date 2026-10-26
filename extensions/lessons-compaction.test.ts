@@ -472,6 +472,10 @@ test("a lesson file shown by any tool, and a part of a run the bash tool did not
 		["bash", shown, undefined, `cat review/reviewer-c.md ${script}`],
 		["bash", quoting, cut, `cat review/round*/reviewer-*.md ${script}`],
 		["bash", quoting, cut, `grep -h -B 12 'end of lessons' ${script} review/reviewer-c.md`],
+		["bash", shown, undefined, "cat $(pwd)/skills/poteto-mode/scripts/lessons.sh review/reviewer-c.md"],
+		["bash", shown, undefined, "cat <<'EOF-LESSONS'\nsh /a/lessons.sh\nEOF-LESSONS"],
+		["bash", shown, undefined, "cat `pwd`/skills/poteto-mode/scripts/lessons.sh review/reviewer-c.md"],
+		["bash", quoting, cut, "grep -h -B 120 '== end of lessons' $(pwd)/skills/poteto-mode/scripts/lessons.sh review/*.md"],
 		["bash", tail, undefined, "sh lessons.sh | tail -n 3"]] as const;
 	for (const [name, part, details, command] of parts) {
 		const before = fixture();
@@ -497,7 +501,13 @@ test("a command runs the script when the script's path is its command word, and 
 		"env LABEL=\"a b\" sh /a/lessons.sh", "/usr/bin/env sh /a/lessons.sh", "ls # note\nsh /a/lessons.sh",
 		"{ sh /a/lessons.sh; } 2>&1", "if [ -d x ]; then sh /a/lessons.sh; fi", "for d in a; do sh /a/lessons.sh; done",
 		"! sh /a/lessons.sh", "ksh /a/lessons.sh", "env -u X sh /a/lessons.sh", "sudo -u me sh /a/lessons.sh",
-		"nice -n 5 sh /a/lessons.sh", "/bin/bash -c /a/lessons.sh"];
+		"nice -n 5 sh /a/lessons.sh", "/bin/bash -c /a/lessons.sh", "cd /x && \\\nsh /a/lessons.sh", "sh \\\n  /a/lessons.sh",
+		"cd /x &&\t\\\nsh /a/lessons.sh", "source /a/lessons.sh", ". /a/lessons.sh", "bash -o pipefail -c 'sh /a/lessons.sh'",
+		"echo \"$(sh /a/lessons.sh)\"", "echo `sh /a/lessons.sh`", "n=$((1<<3))\nsh /a/lessons.sh", "cat <<< 'x'\nsh /a/lessons.sh",
+		"cat <<EOF\n\tEOF\nEOF\nsh /a/lessons.sh", "x=$(echo ')'); sh /a/lessons.sh", "x=$(echo \\)); sh /a/lessons.sh",
+		"</dev/null sh /a/lessons.sh", "sh /a/lessons.sh>/tmp/out; cat /tmp/out", "sh /a/lessons.sh 2>&1 | tail -n 5",
+		"X=1 \\\n  sh /a/lessons.sh", "2>/dev/null sh /a/lessons.sh", "cat <<<x\nsh /a/lessons.sh",
+		"cat <<'EOF-X'\nx\nEOF-X\nsh /a/lessons.sh", "sh 2>&1 /a/lessons.sh", "/lessons.sh", "./lessons.sh"];
 	const names = ["cat report.md /a/lessons.sh", "rg -n 'end of lessons' /a/lessons.sh review/", "git diff -- /a/lessons.sh",
 		"sed -n 1,40p /a/lessons.sh", "shellcheck /a/lessons.sh", "sh /a/my-lessons.sh", "sh /a/lessons.sh.bak",
 		"cat /a/lessons.shared.md", "bun test lessons.test.ts", "sh -c 'cat r.md /a/lessons.sh'",
@@ -507,7 +517,14 @@ test("a command runs the script when the script's path is its command word, and 
 		"grep -h -B 120 -e '== end of lessons' -e '(sh lessons.sh)' review/*.md", "ls # then; sh /a/lessons.sh",
 		"echo \\; sh /a/lessons.sh", "grep -h -B 12 -E 'foo|lessons.sh' r.md", "awk '/a/||/lessons.sh/' f",
 		"rg \"(lessons.sh)\" .", "curl 'http://x?a=1&lessons.sh'", "L=/a/lessons.sh; sed -n 1,80p \"$L\" review.md",
-		"echo then lessons.sh"];
+		"echo then lessons.sh", "cat $(pwd)/lessons.sh report.md", "cat `pwd`/lessons.sh report.md",
+		"grep -h -B 120 '== end of lessons' $(pwd)/skills/poteto-mode/scripts/lessons.sh review/*.md",
+		"cat <<'END.DOC'\nsh /a/lessons.sh\nEND.DOC", "cat <<\\EOF\nsh /a/lessons.sh\nEOF",
+		"cat <<'EOF-LESSONS'\nsh /a/lessons.sh\nEOF-LESSONS", "cat <<EOF\nx\n\tEOF\nsh /a/lessons.sh\nEOF",
+		"echo \\\nsh /a/lessons.sh", "source ./env.sh", "cat $( (echo a) )/lessons.sh r",
+		"diff $(git rev-parse --show-toplevel)/lessons.sh old.sh", "x=$(pwd)/lessons.sh; cat \"$x\"", "echo $(pwd)/lessons.sh",
+		"-- /a/lessons.sh", "2 /a/lessons.sh", "cat <<< /a/lessons.sh", "cat > /a/lessons.sh", "cat 2> /a/lessons.sh x",
+		"cat $(echo \\))/lessons.sh r"];
 	expect(runs.filter((command) => !runsScript(command))).toEqual([]);
 	expect(names.filter((command) => runsScript(command))).toEqual([]);
 });
