@@ -141,6 +141,11 @@ lines) to port instead.
   either. Amendments to pstack's own skills are solved by lesson files (**Lessons** in
   poteto-mode). Unchecked: how well agents follow lessons that conflict with the package text.
 
+- **Lessons and context compaction.** `extensions/lessons-compaction.ts` repeats the output of the
+  last `sh <path>/lessons.sh` run after a compaction drops it. It counts only a command that is
+  the script alone, so a rerun written any other way does not stop the older lessons from coming
+  back. Unchecked since the notice changed: a live run in which the model applies lessons from it.
+
 - **Package dependencies.** Pi packages cannot declare other Pi packages as dependencies;
   `dependencies` in `package.json` only covers npm modules imported by extensions. Required:
   pi-subagents, pi-goal-x. Optional: pi-background-tasks, a todo tool, a question tool, an MCP

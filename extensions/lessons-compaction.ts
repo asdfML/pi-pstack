@@ -1,6 +1,5 @@
 import { fileURLToPath } from "node:url";
-import type { BashToolDetails, ExtensionAPI, SessionEntry, SessionMessageEntry } from "@earendil-works/pi-coding-agent";
-import { type ScriptRuns, scriptRuns } from "./shell-commands.ts";
+import type { ExtensionAPI, SessionEntry, SessionMessageEntry } from "@earendil-works/pi-coding-agent";
 
 export const LESSONS_TYPE = "pstack_lessons";
 // The three lines lessons.sh prints first. lessons.sh indents a lesson line that would pass for one of its own, and
@@ -14,6 +13,13 @@ export const LESSONS_END = /(?<![^\n])== end of lessons(?![^\n])/;
 export const LESSON_HEADER = /(?<![^\n])== lesson for /;
 export const SKILLS_DIR = fileURLToPath(new URL("../skills", import.meta.url));
 const SCRIPT = `${SKILLS_DIR}/poteto-mode/scripts/lessons.sh`;
+// A command that runs the script and nothing else, by `sh` as the skill writes it or by its path, with env
+// assignments before it. A value holds no quote, expansion or operator, so all of the call's output is the script's.
+// Any other command, even one that runs the script, is not a run: output chained after the script could pass for
+// lessons, and the notice puts it in a user message.
+const path = SCRIPT.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const RUN = new RegExp(`^(?:[A-Za-z_]\\w*=[^\\s;&|<>()$\`'"\\\\]*[ \t]+)*(?:sh[ \t]+)?${path}$`);
+export const runsScript = (command: string) => RUN.test(command.trim());
 
 type ToolResult = Extract<SessionMessageEntry["message"], { role: "toolResult" }>;
 
@@ -35,43 +41,35 @@ export default function lessonsCompaction(pi: ExtensionAPI) {
 		// Output a context_edit omitted or rewrote is not live and must not come back through this notice.
 		const edited = new Set(branch.flatMap((entry) => (entry.type === "context_edit" ? [entry.targetId] : [])));
 		// Results of tool calls that ran the script. Any tool can show a lesson file that quotes a whole run, and only
-		// the call tells the two apart. A command that runs the script and then shows such a file still passes for a
-		// run. Results follow the message that made their calls, in call order, so each takes the first call left with
-		// its id: some providers leave call ids empty.
-		const runs = new Map<string, ScriptRuns>();
-		let calls: { id: string; runs: ScriptRuns }[] = [];
+		// the call tells the two apart. Results follow the message that made their calls, in call order, so each takes
+		// the first call left with its id: some providers leave call ids empty.
+		const runs = new Set<string>();
+		let calls: { id: string; run: boolean }[] = [];
 		for (const entry of branch) {
 			if (entry.type !== "message") continue;
 			if (entry.message.role === "assistant") {
 				calls = (entry.message.content ?? []).flatMap((c) => (c.type === "toolCall"
-					? [{ id: c.id, runs: scriptRuns(String(c.arguments?.command ?? "")) }] : []));
+					? [{ id: c.id, run: runsScript(String(c.arguments?.command ?? "")) }] : []));
 			} else if (entry.message.role === "toolResult") {
 				const { toolCallId } = entry.message;
 				const call = calls.findIndex((c) => c.id === toolCallId);
-				const called = call >= 0 ? calls.splice(call, 1)[0].runs : undefined;
-				if (called?.count) runs.set(entry.id, called);
+				if (call >= 0 && calls.splice(call, 1)[0].run) runs.add(entry.id);
 			}
 		}
-		// The last run in a tool result, or undefined when there is none. One call can run the script before and after
-		// writing a lesson, and output of commands chained before or after the script is stale by the time it comes back.
+		// The run in a tool result, or undefined when there is none.
 		const lessonsOf = (entry: SessionEntry): { text: string; whole: boolean } | undefined => {
-			const called = runs.get(entry.id);
-			if (entry.type !== "message" || entry.message.role !== "toolResult" || !called || edited.has(entry.id)) return;
+			if (entry.type !== "message" || entry.message.role !== "toolResult" || !runs.has(entry.id) || edited.has(entry.id)) {
+				return;
+			}
 			const text = textOf(entry.message.content);
-			// Output without the last line was cut from the bottom (`| head`) and may lack the lessons with the highest
-			// priority. Runs of the script from before it printed that line do not count either. Only the script prints
-			// that line at a line start, since it indents lesson lines that look like its own, so more of them than the
-			// command runs the script means another command printed one: an issue or a report could then pass for
-			// lessons, which the notice puts in a user message.
-			const ends = [...text.matchAll(new RegExp(LESSONS_END, "g"))];
-			const end = ends.at(-1);
-			if (!end || ends.length > called.count) return;
+			// Output without the last line was cut short, as by a run that failed, and may lack the lessons with the
+			// highest priority.
+			const end = lastMatch(text, LESSONS_END);
+			if (!end) return;
 			const upTo = end.index + end[0].length;
-			const start = lastMatch(text.slice(0, upTo), LESSONS_START);
-			// Without its first lines, output counts only when the bash tool kept just its tail and that tail is the
-			// script's, so the script is the command's last. A `| tail` shows a part with nothing to say how much is missing.
-			const details = entry.message.details as BashToolDetails | undefined;
-			if (!start && !(called.last && details?.truncation?.truncated)) return;
+			// Without its first lines, the bash tool kept just its tail. The first match and the last end line also hold
+			// a run from a session older than the indentation in lessons.sh, whose lessons could quote both lines.
+			const start = text.match(LESSONS_START) ?? undefined;
 			return { text: text.slice(start?.index ?? 0, upTo), whole: start !== undefined };
 		};
 		if (branch.slice(checkpointAt + 1).some(lessonsOf)) return;
