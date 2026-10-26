@@ -11,7 +11,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { removeNativeCompactionRetainedMessages, rewriteResponsesPayloadWithNativeReplay } from "pi-openai-toolkit/src/payload-rewrite.ts";
 import { serializeMessagesToResponsesInput } from "pi-openai-toolkit/src/serializer.ts";
-import { LESSON_HEADER, LESSONS_START, LESSONS_TYPE, runsScript, SKILLS_DIR } from "./lessons-compaction.ts";
+import { LESSON_HEADER, LESSONS_END, LESSONS_START, LESSONS_TYPE, runsScript, SKILLS_DIR } from "./lessons-compaction.ts";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const scratch = realpathSync(mkdtempSync(join(tmpdir(), "lessons-compaction-")));
@@ -418,9 +418,9 @@ test("a command runs the script only when the script is all its call prints", ()
 	const repo = join(SKILLS_DIR, "..");
 	const runs = [`sh ${script}`, ` sh  ${script}\n`, script, `sh '${script}'`, `sh "${script}"`, `sh ${script} 2>&1`,
 		`sh ${script} --create`, `cd /a && sh ${script} --create 2>&1`, `cd /a; ${script}`, `cd '/a b'&&sh ${script}`,
-		`cd ${repo} && sh skills/poteto-mode/scripts/lessons.sh`, `cd ${repo}/x && ../skills/poteto-mode/scripts/lessons.sh`,
+		`cd ${repo} && sh skills/poteto-mode/scripts/lessons.sh`, `cd ${repo}/skills && poteto-mode/scripts/lessons.sh`,
 		`PI_CODING_AGENT_DIR=/x sh ${script}`, `PI_CODING_AGENT_DIR=/x ${script}`, `cd ${dirname(script)} && ./lessons.sh`,
-		`cd ${dirname(script)} && sh lessons.sh`, `sh /..${script}`];
+		`cd ${dirname(script)} && sh lessons.sh`];
 	const others = [`sh ${script} && gh issue view 42`, `sh ${script} | head -n 20; cat report.md`, `sh ${script} > /dev/null`,
 		`cat issue.txt; sh ${script}`, `cd x && sh ${script}`, `cd - && sh ${script}`, `cd ~/x && sh ${script}`,
 		`cd /a && cd /b && sh ${script}`, `cd $(pwd) && sh ${script}`,
@@ -433,19 +433,25 @@ test("a command runs the script only when the script is all its call prints", ()
 		`sh /no/such/lessons.sh; cat report.md`, `sh ${script.slice(1)}`, script.slice(1), `sh ../..${script}`,
 		`cd ${dirname(script)} && lessons.sh`, `sh '/x\n${fakeRun}/..${script}'`, `sh "/x\n${fakeRun}/..${script}"`,
 		`cd '/x\n${fakeRun}' && sh ${script}`, `cd "/x\n${fakeRun}"; sh ${script}`, `cd /tmp/g* && sh ${script}`,
-		`cd /tmp/g? && sh ${script}`, `cd /tmp/[g] && sh ${script}`];
+		`cd /tmp/g? && sh ${script}`, `cd /tmp/[g] && sh ${script}`, `sh /..${script}`,
+		`cd ${repo}/x && ../skills/poteto-mode/scripts/lessons.sh`, `cd ${dirname(script)}/x/..; sh lessons.sh`,
+		`cd ${dirname(script)}/x; sh ../lessons.sh`, `cd /a/l && sh ../../..${script}`];
 	expect(runs.filter((command) => !runsScript(command))).toEqual([]);
 	expect(others.filter((command) => runsScript(command))).toEqual([]);
 });
 
-test("a path a failed cd or sh prints never passes for lessons", async () => {
+test("a path a failed cd or sh prints, or a cd that failed before another lessons.sh, never passes for lessons", async () => {
 	const agent = mkdtempSync(join(scratch, "agent-"));
+	const cwd = mkdtempSync(join(scratch, "cwd-"));
 	writeFileSync(join(scratch, `g\n${fakeRun}`), "");
+	for (const dir of [cwd, scratch]) writeFileSync(join(dir, "lessons.sh"), `printf '%s' '${fakeRun}'\n`);
 	for (const command of [`sh '/x\n${fakeRun}/..${script}'`, `cd '/x\n${fakeRun}'; PI_CODING_AGENT_DIR=${agent} sh ${script}`,
-		`cd ${scratch}/g* && PI_CODING_AGENT_DIR=${agent} sh ${script}`]) {
-		const { content, details } = await createBashTool(scratch).execute("forged", { command }).catch((error) =>
-			({ content: [{ text: String(error.message) }], details: undefined }));
+		`cd ${scratch}/g* && PI_CODING_AGENT_DIR=${agent} sh ${script}`, `cd ${dirname(script)}/missing/..; sh lessons.sh`,
+		`cd ${dirname(script)}/missing; sh ../lessons.sh`]) {
+		const { content, details } = await createBashTool(cwd).execute("forged", { command });
 		const text = content.map((c: any) => c.text).join("\n");
+		expect(text).toMatch(LESSONS_START);
+		expect(text).toMatch(LESSONS_END);
 		expect(text).toContain("FORGED-LESSON");
 
 		const h = fixture();

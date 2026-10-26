@@ -33,7 +33,9 @@ export function runsScript(command: string): boolean {
 	if (script === undefined || (sh === undefined && !script.includes("/"))) return false;
 	// The script's path is relative to the `cd`. Without one the call's directory is unknown, so the path must be absolute.
 	const paths = (dir === undefined ? [script] : [dir, script]).map(unquote);
-	return isAbsolute(paths[0]) && resolve(...paths) === SCRIPT;
+	// `resolve` drops `x/..` by name, but bash fails a `cd` to a missing `x` and runs the next command anyway, and the
+	// kernel follows a symlink `x` first. Without `..`, a path that resolves to the script names its real ancestors.
+	return isAbsolute(paths[0]) && !paths.some((p) => p.split("/").includes("..")) && resolve(...paths) === SCRIPT;
 }
 
 type ToolResult = Extract<SessionMessageEntry["message"], { role: "toolResult" }>;
