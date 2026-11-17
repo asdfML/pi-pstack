@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 Answer the user's question about pstack, hand them a prompt they can send, and link the file the answer came from. For a help question, don't start the work. The user asked how, and a pstack run spends real tokens, so let them send the prompt.
 
-A message that asks for work, such as "use pstack to fix this bug", is not a help question. Read [`poteto-mode`](../poteto-mode/SKILL.md), do the work under it, and mention once that the optional routing block from `/skill:setup-pstack` applies it without typing the command.
+A message that asks for work, such as "use pstack to fix this bug", is not a help question. Read [`poteto-mode`](../poteto-mode/SKILL.md), do the work under it, and mention once that the [manual routing recipe](../../docs/guide/09-make-it-yours.md#opt-into-automatic-routing-manually) can apply it without typing the command.
 
 This file maps questions to the skills and guide pages that hold the answers. Those files own the details. Read the file you route to before you quote it, and trust it when it disagrees with this map. The links here point into the installed package. Give the user the file's absolute path so they can open it.
 
@@ -26,6 +26,7 @@ Check the state that changes the answer, and mention it only when it does:
 
 - No `pstack/models.md` in the Pi agent directory (`$PI_CODING_AGENT_DIR`, else `~/.pi/agent`) means `/skill:setup-pstack` hasn't run for this user, so every role runs on the parent session's model.
 - No `verify-*` skill or other app harness in the project means agents have no scripted way to drive the app. Mention `/skill:create-verification-skill` when the question is about proving a change works.
+- No formal verification skill in the project means no property is checked past what tests reach. Mention `/skill:create-formal-verification-skill` when the question is about a race, an invariant, or another case tests rarely hit. When one exists and the code it covers changed after the commit it records as last in sync, mention `/skill:maintain-formal-verification-skill` if the question touches that code.
 
 When the model file is missing and it matters, ask whether the user wants to pick a model for each role and a reasoning budget now. It matters when the user is new, the question is about setup or cost, or the answer depends on which models run. Ask at most once per chat. If the need is also unclear, ask both questions together. Offer two choices:
 
@@ -35,14 +36,14 @@ When the model file is missing and it matters, ask whether the user wants to pic
 ## Get set up
 
 1. Install with `pi install` and the package source in the [README](../../README.md), plus the Pi packages it needs (pi-subagents, pi-goal-x).
-2. Run [`/skill:setup-pstack`](../setup-pstack/SKILL.md). It checks those packages, asks for a reasoning budget, maps a model to each role, and writes `pstack/models.md`. The file applies to the next subagent a skill spawns.
+2. Run [`/skill:setup-pstack`](../setup-pstack/SKILL.md). It checks those packages, asks for a reasoning budget, maps a model to each role, and writes `pstack/models.md`. The file applies to the next subagent a skill spawns. Then it offers once each to generate a verification skill and a formal verification skill for the project, unless the project already has one. An existing app harness also satisfies the first offer.
 3. Start a real task with `/skill:poteto-mode`, a goal, and a check that can pass or fail.
 
-Installing changes nothing until the user invokes a skill. Only `/skill:setup-pstack` loads from the user's words. The [README](../../README.md) and [guide page 1](../../docs/guide/01-setup.md) have the details. Offer to word their first prompt with them, per [`references/prompting.md`](references/prompting.md).
+Most workflow skills require an explicit command or a pointer from another skill. Four skills are discoverable from the user's words: `setup-pstack`, `control-ui`, `control-cli`, and `deslop`. The [README](../../README.md) and [guide page 1](../../docs/guide/01-setup.md) have the details. Offer to word their first prompt with them, per [`references/prompting.md`](references/prompting.md).
 
 If cost is the worry, say where the tokens go and how to spend fewer. pstack spends extra tokens on subagents and review panels. Rerun `/skill:setup-pstack` and pick a smaller budget or cheaper models. A role set to `inherit-parent` runs on the session's model, which saves tokens when the session runs on a cheaper model. A shorter panel list runs fewer subagents, one for each entry. Save `/skill:poteto-mode` for work that needs rigor.
 
-pi-pstack is the Pi port of pstack. Its skills use the Agent Skills format, so other tools can read them. But most workflow skills, including `/skill:poteto-mode`, `/skill:how`, `/skill:why`, and `/skill:teach`, spawn pi-subagents subagents with per-role models, and runs until done use pi-goal-x, so those parts need Pi with both packages.
+pi-pstack is the Pi port of pstack. Its skills use the Agent Skills format, so other tools can read them. But most workflow skills, including `/skill:poteto-mode`, `/skill:how`, and `/skill:teach`, spawn pi-subagents subagents, some with per-role models, and runs until done use pi-goal-x, so those parts need Pi with both packages.
 
 ## Start a task with `/skill:poteto-mode`
 
@@ -51,7 +52,7 @@ pi-pstack is the Pi port of pstack. Its skills use the Agent Skills format, so o
 Whether `/skill:poteto-mode` stays on depends on how the user starts it:
 
 - `/skill:poteto-mode <task>` attaches the skill to that message. It fades as the chat moves on, so start each new task with it.
-- The optional routing block that `/skill:setup-pstack` writes into `AGENTS.md` in the Pi agent directory tells every session to read `poteto-mode` for multi-file changes, design choices, and unknown bugs.
+- The [manual routing recipe](../../docs/guide/09-make-it-yours.md#opt-into-automatic-routing-manually) is an opt-in outside setup.
 
 Link Pi's skills documentation (`docs/skills.md` in the Pi package) when this comes up. Mid-chat, "new task" makes the mode match a fresh playbook. `/skill:poteto-mode` already uses `poteto-agent` for the subagents its playbook steps spawn. To get the same style from a subagent of your own, spawn it with `agent: "poteto-agent"` and the absolute path of `poteto-mode/SKILL.md` in its task.
 
@@ -63,12 +64,13 @@ The default answer is `/skill:poteto-mode`, which runs most of the others when i
 |---|---|
 | Do any non-trivial task with rigor | [`/skill:poteto-mode`](../poteto-mode/SKILL.md) |
 | Check that the agent understood their goal and the problem before it starts | [`/skill:in-your-own-words`](../in-your-own-words/SKILL.md) |
-| Aim a task higher before starting: more expert, more outcome-focused, not overspecified | [`/skill:sharpen`](../sharpen/SKILL.md) |
+| Get a prompt rewritten deeper, not bigger, before sending it: what a top professional would add, their raw material and methods, and an outside check. It returns the prompt and doesn't do the task | [`/skill:sharpen`](../sharpen/SKILL.md) |
 | Know how code works now, or where new code should live | [`/skill:how`](../how/SKILL.md) |
 | Know why code is shaped this way, or where a number came from | [`/skill:why`](../why/SKILL.md) |
 | Understand a change or subsystem, explained plainly | [`/skill:teach`](../teach/SKILL.md) |
 | Catch up on their own recent work on a topic | [`/skill:recall`](../recall/SKILL.md) |
-| Catch up on what changed in this chat since their last message, in a few plain sentences and small visuals, with enough context to decide each action item | [`/skill:ketchup`](../ketchup/SKILL.md) |
+| Catch up on what changed in this chat since their last message, in plain words and small visuals, with every item waiting on them listed and decidable from the reply alone | [`/skill:ketchup`](../ketchup/SKILL.md) |
+| Catch up like `/skill:ketchup`, in a short subtitled video of slides, with the waiting calls as text under it | [`/skill:ketchup-video`](../ketchup-video/SKILL.md) |
 | Know what a small diff could break outside itself | [`/skill:blast-radius`](../blast-radius/SKILL.md) |
 | Settle types and module shape before code that crosses a function boundary | [`/skill:architect`](../architect/SKILL.md) |
 | Get several attempts at one brief, merged into the best one | [`/skill:arena`](../arena/SKILL.md) |
@@ -82,6 +84,9 @@ The default answer is `/skill:poteto-mode`, which runs most of the others when i
 | Hear the last reply again in plain words | [`/skill:bro`](../bro/SKILL.md) |
 | Give agents a scripted way to drive the app and prove behavior | [`/skill:create-verification-skill`](../create-verification-skill/SKILL.md) |
 | Bring a verification skill and its feature map back in line with the app | [`/skill:maintain-verification-skill`](../maintain-verification-skill/SKILL.md) |
+| Formally verify a race, invariant, or other property that tests rarely reach | [`/skill:create-formal-verification-skill`](../create-formal-verification-skill/SKILL.md) |
+| Bring a formal verification back in line after the code it covers changed, and learn whether a failure is drift or a bug | [`/skill:maintain-formal-verification-skill`](../maintain-formal-verification-skill/SKILL.md) |
+| Show a PM or designer what the user sees as a chart checked by a TLA+ model, with the shortest path to each state that breaks a rule | [`/skill:statechart`](../statechart/SKILL.md) |
 | Vet a performance number before reporting or acting on it | [`/skill:benchmark-checklist`](../benchmark-checklist/SKILL.md) |
 | Run a large or cross-cutting change, or one to review after stepping away | [`/skill:figure-it-out`](../figure-it-out/SKILL.md) |
 | Keep a decision log during a run, and review it afterward | [`/skill:show-me-your-work`](../show-me-your-work/SKILL.md) |
@@ -106,9 +111,9 @@ Not in pstack:
 
 - Loops come from pi-goal-x (`/goal`), and timers from `bg_run` in pi-background-tasks. pstack has no loop skill.
 - pstack has no skill-authoring skill. `/skill:poteto-mode write a skill for <workflow>` runs its authoring playbook.
-- pstack has no `orchestrate` skill. Orchestrate is a `/skill:poteto-mode` playbook. If `/skill:orchestrate` exists, another package provides it.
+- pstack has no `orchestrate` skill. Orchestrate is a `/skill:poteto-mode` playbook. If a skill named `orchestrate` exists, another package provides it.
 
-`/skill:deslop`, `/skill:control-cli`, and `/skill:control-ui` ship in this package. Unlike the rest of pstack, the model can load them on its own.
+`/skill:deslop`, `/skill:control-cli`, and `/skill:control-ui` ship in this package and are discoverable, like `/skill:setup-pstack`.
 
 ## Playbooks and principles
 
@@ -118,7 +123,7 @@ Playbooks are step lists inside `/skill:poteto-mode`, not skills, so they have n
 - "land the stack" runs Shipping.
 - "take over this branch" runs Session pickup.
 - "pause safely" runs Pause safely.
-- "full autopilot on this queue" runs Autopilot-full. "stack them, don't ship" runs Autopilot-stack.
+- "full autopilot on this queue" runs Autopilot-full. "autopilot, don't merge" runs Autopilot-stack.
 - "run the eval playbook" runs Eval.
 
 Without `/skill:poteto-mode`, a phrase such as "babysit this pr" can start another package's skill for the same job instead. The Playbooks section of [`poteto-mode`](../poteto-mode/SKILL.md) lists every playbook and when it applies. [Guide page 6](../../docs/guide/06-verify-and-ship.md) covers opening, babysitting, and landing a PR.
@@ -131,12 +136,12 @@ Principles are one-rule skills that `/skill:poteto-mode` reads and cites in its 
 
 | Symptom | Fix |
 |---|---|
-| The mode stopped applying after a few turns | Start each task with `/skill:poteto-mode`, or turn on the routing block in `/skill:setup-pstack`. |
+| The mode stopped applying after a few turns | Start each task with `/skill:poteto-mode`, or use the manual routing recipe above. |
 | A question got treated as the next step of the last task | Say "new task", or say the turn doesn't need the mode. |
 | A new model choice had no effect | Skills read `pstack/models.md` at each spawn. Check that the role's line names a model from `subagent({ action: "models" })`, and that a playbook step spawned a subagent at all. |
 | Runs cost more than expected | See the cost paragraph under Get set up. |
-| A skill didn't load on its own | Only `/skill:setup-pstack` loads from the user's words. The others load when the user types them or when `/skill:poteto-mode` runs them, and it doesn't run every skill. |
-| Parallel agents overwrote each other | Give each agent its own worktree (`worktree: true` on the `subagent` call). |
+| A skill didn't load on its own | Most workflow skills are hidden from automatic discovery. Type the command or route through `/skill:poteto-mode`. See Get set up for the four discoverable skills. |
+| Parallel agents overwrote each other | Give each writer a runnable checkout per [Pi isolation](../poteto-mode/references/pi-isolation.md). |
 | An overnight run moved but finished nothing | The goal needs a check that can pass or fail, not a duration. See [guide page 7](../../docs/guide/07-overnight.md). |
 | The reply claims success from a green build | Ask for the real command, flow, stored value, or profile. That's the prove-it-works principle. |
 

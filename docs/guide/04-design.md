@@ -2,7 +2,7 @@
 
 One attempt at a hard design locks in the first shape the model thought of. `/skill:architect` settles types and boundaries before implementation. `/skill:arena` runs several attempts at the same brief and merges the best parts. `/skill:interrogate` has other models try to break the result. When the job is coverage rather than design synthesis, `/skill:swarm` fans out slices or races and aggregates their results.
 
-The two most common design mistakes are taking the agent's first design and polishing a plan that no code has tested. This page fixes both. You plan through code: prototypes answer the open questions, a README or tutorial sets the target, and the written plan comes last.
+The two most common design mistakes are taking the agent's first design and polishing a plan that no code has tested. This page fixes both. You plan through code. Prototypes answer the open questions, a README or tutorial sets the target, and the written plan comes last.
 
 ![Three robots draft competing bridge models at their own tables under /skill:architect, /skill:arena, and /skill:interrogate panels, while a judge robot with a clipboard inspects skeptically.](./images/design.jpg)
 
@@ -12,7 +12,7 @@ The two most common design mistakes are taking the agent's first design and poli
 /skill:architect design the import pipeline before writing any code. i care most about how callers use it.
 ```
 
-[`/skill:architect`](../../skills/architect/SKILL.md) grounds itself first, running `/skill:how` over the code the design touches and `/skill:why` when it moves ownership or layers. Then it runs `/skill:arena` to produce competing design sketches, with the caller's usage written first in each, followed by types, signatures, and a module map.
+[`/skill:architect`](../../skills/architect/SKILL.md) grounds itself first, tracing the code the design touches and running `/skill:why` when it moves ownership or layers. Then it runs `/skill:arena` to produce competing design sketches, with the caller's usage written first in each, followed by types, signatures, and a module map.
 
 By default it proceeds straight from the synthesized design into implementation. If you want to see the design first, say so:
 
@@ -28,7 +28,7 @@ The design isn't sacred once code starts. If implementation shows the same worka
 /skill:arena take my prompt to the arena verbatim. i want to compare their proposals with yours.
 ```
 
-[`/skill:arena`](../../skills/arena/SKILL.md) is the general tool underneath. N subagents attempt the same design or code brief in parallel, each writing to its own worktree or directory. A read-only judge, on a different model family when your configuration allows one, scores every candidate against a rubric. The coordinator reads each candidate end to end, picks a base, grafts in the best ideas from the losers, and verifies the result.
+[`/skill:arena`](../../skills/arena/SKILL.md) is the general tool underneath. N subagents attempt the same design or code brief in parallel, with [isolated checkouts](../../skills/poteto-mode/references/pi-isolation.md) for code and builds. A read-only judge from a different model vendor scores every candidate against a rubric. When no model from another vendor can run, the coordinator skips the judge and picks the base itself. The coordinator reads each candidate end to end, picks a base, grafts in the best ideas from the losers, and verifies the result.
 
 ```mermaid
 flowchart LR
@@ -36,7 +36,7 @@ flowchart LR
     B --> C[Candidate 1]
     B --> D[Candidate 2]
     B --> E[Candidate N]
-    C --> F[Cross-judge]
+    C --> F[Cross-judge when available]
     D --> F
     E --> F
     F --> G[Pick a base]
@@ -66,9 +66,11 @@ Reach for it when parallelism buys coverage or lets independent checks race. `/s
 /skill:interrogate the whole branch, but skeptically. no nitpicks unless it's an actual bug or regression.
 ```
 
-[`/skill:interrogate`](../../skills/interrogate/SKILL.md) sends the same diff, intent, and rubric to reviewers on different model families. Model diversity is the point. Different models have different blind spots, so a finding two models raise independently is high-confidence signal. The lead sorts everything into `Act on`, `Consider`, `Noted`, and `Dismissed`, with a reason for each dismissal, and applies nothing automatically.
+[`/skill:interrogate`](../../skills/interrogate/SKILL.md) gives the change and its intent to adversaries on the configured models, and each tries to break it with a run against the real code. Adversaries find different failures. A finding survives only when rerunning its command shows a failure that breaks the intent. The report lists every verified finding with the adversaries that found it, then what each adversary dropped and why, and applies nothing.
 
-Read the dismissals too. The lead is a pragmatic senior engineer, not an oracle, and you can override it.
+Adversaries can write reproductions in isolated checkouts. The coordinator reruns the commands, but neither changes product code nor grafts the reproductions into your checkout. The shared [Pi isolation procedure](../../skills/poteto-mode/references/pi-isolation.md) covers dirty trees and setup when a reproduction needs it.
+
+Read the Dropped list too. You can override the verdict.
 
 ## Prototype instead of debating
 
@@ -86,7 +88,7 @@ The same idea scales up to a real design. Pair `/skill:architect` with prototype
 /skill:poteto-mode we need rate limiting for external webhooks. /skill:architect it first, and answer open questions with prototypes. let me review before proceeding.
 ```
 
-Don't spend reviewers on an abstract plan. `/skill:interrogate` belongs on a diff. Point adversarial review at a plan with no code behind it and the reviewers invent theoretical risks and edge cases that will never happen. Let prototypes settle the questions, then review what got built.
+Don't spend adversaries on an abstract plan. `/skill:interrogate` drops every finding a run does not prove, so a plan with no code behind it gives them little to break. Let prototypes settle the questions, then review what got built.
 
 ## Write the README first for shared code
 

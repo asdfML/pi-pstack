@@ -12,7 +12,7 @@ Invoke when the user says "reflect" or "/skill:reflect". Skip when the conversat
 
 ## 1. Locate the active transcript
 
-Before fanning out, find this conversation's transcript. Pi stores this workspace's sessions in `sessions/--<cwd>--/` under the Pi agent directory (`$PI_CODING_AGENT_DIR`, else `~/.pi/agent`), where `<cwd>` is the working directory without its leading `/` and with each `/` as `-`. Each `<timestamp>_<id>.jsonl` opens with a `type: "session"` header line. Every later line is an entry with an `id` and a `parentId`, and a message entry has `type: "message"` with `message.role` `user`, `assistant`, or `toolResult`. A file keeps abandoned branches, so follow `parentId` back from the last entry for the conversation that actually happened. Subagent transcripts live in that directory's `subagent-artifacts/*_transcript.jsonl`. Read only this workspace's directory. Do not glob across `sessions/*/`. That crosses workspace boundaries and reads private chats from unrelated projects.
+Before fanning out, find this conversation's transcript per [Pi transcripts](../poteto-mode/references/pi-transcripts.md). Prefer its supplied path and identity. Search fallback candidates only in this workspace, never unrelated private chats.
 
 ```bash
 ls -t <sessions-dir>/*.jsonl | head -10
@@ -22,9 +22,9 @@ For each candidate, find the first entry with `message.role` `user`. Take the fi
 
 ## 2. Spawn three reviewers in parallel
 
-One message, three separate `subagent` calls (not a workflow), `agent: "general-purpose"`, `async: true`. Reviewers need MCP access to look up the tickets, chat threads, and observability traces the transcript references, and `general-purpose-readonly` has no MCP tools. Tell each reviewer to resolve the key for each source it looks up, such as `tracker`, `chat`, or `observability`, per `../poteto-mode/references/integrations.md`, and to use only the tool that key names.
+One message, three separate `subagent` calls, `agent: "general-purpose"`, `async: true`. Reviewers need MCP access to look up the tickets, chat threads, and observability traces the transcript references, and `general-purpose-readonly` has no MCP tools. Tell each reviewer to resolve the key for each source it looks up, such as `tracker`, `chat`, or `observability`, per `../poteto-mode/references/integrations.md`, and to use only the tool that key names.
 
-Each reviewer and the synthesizer name a role line in `pstack/models.md` in the Pi agent directory (`$PI_CODING_AGENT_DIR`, else `~/.pi/agent`). Set `model` to that line's value. Omit `model` when the file or the line is missing or the value is `inherit-parent`, so the subagent runs on the parent model. If `subagent` rejects a model, run that subagent on the parent model and say so. Pick each subagent's reasoning level for the job, per the Subagents section of the **poteto-mode** skill.
+Each reviewer and the synthesizer name a role line in `pstack/models.md` in the Pi agent directory (`$PI_CODING_AGENT_DIR`, else `~/.pi/agent`). Set `model` to that line's value. Use `model: "inherit"` when the file or the line is missing or the value is `inherit-parent`. Omitting `model` may select configured agent defaults instead. If `subagent` rejects a model, use the closest valid model of the same family from its error message. Never retry a rejected model. If none remains, use `model: "inherit"` and say so. Pick each subagent's reasoning level for the job, per the Subagents section of the **poteto-mode** skill.
 
 | Lens | Role line | Prompt template |
 |---|---|---|
@@ -47,6 +47,8 @@ Move any Accepted item that a lint rule, script, metadata flag, or runtime check
 Present the synthesizer's full Accepted / Rejected / Backlog output and wait for explicit approval before applying any Accepted edit. The user picks the subset and may redirect routings. Skill changes affect every future agent in the org. Do not auto-apply.
 
 File each Backlog item to your team's devex or backlog tracker without waiting. Only the Accepted list waits for approval.
+
+For a non-pstack installed package skill, never edit the installed package. Before approval, show its destination in the project's `.agents/skills/<skill>/` or the user's `~/.agents/skills/<skill>/`. After approval, copy the skill folder there and edit the copy. Project-owned skills remain editable in place. Pstack files follow the Lessons branch below instead of copying or editing the package. Never open a PR or push. This rule overrides the generic authoring playbook's publication step.
 
 Follow each approved row's Routing exactly:
 

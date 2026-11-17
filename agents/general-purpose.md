@@ -3,6 +3,7 @@ name: general-purpose
 description: General-purpose subagent with the parent's full tool set, including file edits and MCP tools from ambient extensions. Use for research, multi-step tasks, and investigations that need MCP access. Runs in the background so ambient extensions load.
 systemPromptMode: append
 inheritProjectContext: true
+inheritGlobalContext: true
 inheritSkills: true
 defaultContext: fresh
 async: true

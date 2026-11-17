@@ -5,6 +5,7 @@ tools: read, grep, find, ls, bash, contact_supervisor
 acceptanceRole: read-only
 systemPromptMode: append
 inheritProjectContext: true
+inheritGlobalContext: true
 inheritSkills: true
 defaultContext: fresh
 ---

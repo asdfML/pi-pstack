@@ -1,0 +1,11 @@
+# Pi isolation
+
+Use this procedure when the calling workflow requires isolated workers. Each source-writing, building, SHA-switching, or code-executing worker gets a separate checkout, runnable when the task executes code. A standalone artifact can use an output directory. Pure read-only inspection can share the source directory.
+
+Use `worktree: true` when the source is clean. For a dirty source, capture its HEAD and create a separate checkout with `git clone --no-hardlinks --no-checkout <absolute-source-checkout> <worker-dir>`, then `git checkout --detach <captured-sha>` there. Pass that checkout as `cwd` with `worktree: false`. Never commit or stash user changes to prepare a worker.
+
+When the task needs uncommitted inputs, capture only its scope with `git diff --binary HEAD -- <scoped-paths>` and apply it in each checkout with `git apply --binary <patch-file>`. This includes scoped staged and unstaged changes and deletions, not their staging state. Review `git ls-files --others --exclude-standard -z -- <scoped-paths>` and copy only relevant untracked files, preserving paths and modes. Do not copy ignored files, credentials, or the source `.git`. Compare each checkout's scoped diff and untracked files with the captured inputs before launching.
+
+When running code requires dependencies or local setup, use the project's documented recipe in that checkout. Report a setup blocker as blocked work, not a passing verification. Keep repros and probe edits there. Inspect the selected patch before applying it to the user's checkout; leave unrelated user changes untouched. Remove only checkouts and processes this run created, after retaining the required results. Never reset or clean a user's worktree.
+
+A worktree is not a VM. Linked worktrees share git refs, configuration, and stash state. Workers must not write shared configuration or stash state, or change user or other workers' refs. Commits to a worker's own branch remain governed by its brief. Separate checkouts still share the machine's CPU, services, caches, databases, and simulators. Give app workers distinct ports and separate writable resources. Run perf and measurement workers sequentially after other workers finish. If a resource cannot be isolated, serialize its users and state that limit.

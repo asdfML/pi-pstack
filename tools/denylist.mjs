@@ -19,7 +19,7 @@ const rules = [
   [/AskQuestion/, "AskQuestion"],
   [/pstack-models\.mdc|alwaysApply/, "Cursor rule"],
   [/cursor-team-kit|\bcreate-skill\b/, "Cursor built-in or plugin"],
-  [/\/loop\b/, "/loop"],
+  [/(?<![\w./:-])\/loop\b(?![\w/-]|\.[\w])/, "/loop"],
   [/\b(grok|composer|cursor-grok)-[\w.-]+|claude-opus-5-5-(low|medium|high|xhigh|max)/, "Cursor model slug"],
   [/agent-transcripts/, "Cursor transcripts"],
   [new RegExp(`(?<![\\w:.\\/-])\\/(${skills.join("|")})\\b(?!\\/)`), "slash command without /skill:"],

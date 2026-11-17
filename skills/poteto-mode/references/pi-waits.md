@@ -1,0 +1,11 @@
+# Pi continuation and waits
+
+State a checkable exit predicate. Keep working toward it with the available goal/continuation tool, using the predicate as its completion requirement. Do not invent tool payloads; inspect the installed tool contract. Preserve the calling playbook's operator-go boundary, cadence, and unit of iteration. A wake is a chance to check the predicate, not proof it holds.
+
+Prefer native completion wakes from owned async subagents and background commands. For an external event, use its watcher so completion wakes the originating session. Do independent work while it runs, otherwise yield. Treat a terminal notification as durable truth; read bounded logs only when details are needed. Do not poll status or logs in a wait loop or reconfirm a terminal notification.
+
+When no event can wake the session, use one owned `bg_run` sleep timer with `isAgent: false`, completion notification and turn triggering enabled. Size it to when a recheck is useful, or the caller's hourly audit cadence. A long heartbeat may back up an event watcher. Record its ID and keep an existing timer across other wakes. If its state is genuinely unknown, inspect it once before arming another. Rearm only after it fires and the predicate still needs work.
+
+If no suitable background wake tool exists and installed scheduling and workflow scripts are enabled, use one session-local one-shot reminder workflow through `subagent` action `schedule.create`. Its workflow body can be `return "tick"` without launching an LLM child. The supported options include `at: "+10m"` or a timezone-qualified timestamp and `sessionOnly: true`. Use the caller's delay, inspect the installed action schema, and retain the returned schedule ID. Use `schedule.list` only to recover an unknown owned timer, not to poll for its wake. Delete the fired record with `schedule.delete`. Scheduling needs an eligible active Pi runtime; it is not a daemon and may be disabled. If neither wake mechanism is available, report that limitation rather than promise unattended continuation.
+
+When the predicate holds, the operator stops or holds the run, or the wait is no longer needed, stop owned watchers and timers with `bg_kill` or pause/delete the owned schedule. Do not stop another run's work. Follow the caller's stop and zero-writes rules immediately.

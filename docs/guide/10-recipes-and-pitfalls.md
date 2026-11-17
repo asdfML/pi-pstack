@@ -18,7 +18,15 @@ Mechanics first, history second. Each skill's report tells you which sources it 
 /skill:poteto-mode read this thread. restate the underlying issue in your own words, in plain english. don't change any code yet.
 ```
 
-A misreading shows up in the restatement, where it costs one message to correct. Keep your own theory to yourself until the agent has stated its own.
+A misreading shows up in the restatement, where it costs one message to correct. Keep your own theory to yourself until the agent has stated its own. `/skill:in-your-own-words` asks for the restatement alone, with no playbook.
+
+## Sharpen a prompt before you send it
+
+```text
+/skill:sharpen write the onboarding doc for the new billing service.
+```
+
+The agent returns only your rewritten prompt, asking for what an expert would do that you didn't ask for, the raw material they'd start from, their methods and tools, and an outside check that the result is right. It asks for prototypes where an experiment can settle a choice and doesn't do the task. Send the rewrite when it reads right.
 
 ## Prototype before you pick
 
@@ -42,7 +50,7 @@ Ask only after the design settles. The plan is the deliverable, and it names the
 ask /skill:arena for a second opinion on this thread and our approach
 ```
 
-Your current design becomes one candidate among several, and the synthesis tells you whether the panel found something better or confirmed what you had. Cheap insurance before a costly commitment.
+Your current design becomes one candidate among several, and the synthesis tells you whether the panel found something better or confirmed what you had. It costs little next to a design that is expensive to reverse.
 
 ## Check independent slices in parallel
 
@@ -58,7 +66,7 @@ Each worker owns one package. The parent waits for every slice and returns one `
 /skill:interrogate the whole branch, but skeptically. don't change anything yet. no nitpicks unless it's an actual bug or regression in behavior.
 ```
 
-The qualifiers do real work. "don't change anything yet" keeps it read-only, and the nitpick rule pre-filters the noise so `Act on` findings are worth your time.
+The qualifiers do real work. "don't change anything yet" keeps product code unchanged. Adversaries write and run reproductions in isolated checkouts, and the coordinator reruns them so the verified findings are worth your time.
 
 ## Fix a bug through a failing test
 
@@ -75,6 +83,14 @@ The qualifiers do real work. "don't change anything yet" keeps it read-only, and
 ```
 
 "if it repros on main" lets the run stop early when the bug is already gone. The video lets you check the fix before you read the diff.
+
+## Prove a property tests rarely reach
+
+```text
+/skill:create-formal-verification-skill the retry queue. a message must never be delivered twice.
+```
+
+You get one property checked in every case within a stated scope, a counterexample in your code's terms if the code already breaks it, and a project skill the next agent runs on any change to that code.
 
 ## Vet a number before you post it
 
@@ -134,20 +150,30 @@ You rarely need more words. You need the right name, and [the principles page](.
 
 That's the whole prompt. [`/skill:bro`](../../skills/bro/SKILL.md) restates the last message like one human talking to another, no jargon, shorter. Use it when a reply is technically thorough and you still don't know what it said.
 
+## Catch up on a chat you left running
+
+```text
+/skill:ketchup
+```
+
+[`/skill:ketchup`](../../skills/ketchup/SKILL.md) tells you in plain words what changed since your last message, then lists each call waiting on you with its pick, evidence, and risk. It changes nothing while it reports.
+
+To watch the catch-up instead, run [`/skill:ketchup-video`](../../skills/ketchup-video/SKILL.md). It shows what happened in a short subtitled video of slides, and lists the calls waiting on you as text under it.
+
 ## The pitfalls
 
-- **Enumerating skills in the prompt.** "use /skill:how then /skill:architect then /skill:arena" reorders steps the playbook already sequences. State the goal and constraints. Name a skill only to override a default.
+- **Enumerating skills in the prompt.** "use /skill:architect then /skill:arena then /skill:interrogate" reorders steps the playbook already sequences. State the goal and constraints. Name a skill only to override a default.
 - **A vague finish condition.** "make it better" gives the goal nothing to check. Give a command or artifact that can pass or fail.
 - **Leading with your theory of the cause.** The agent searches wherever you pointed. Ask it to restate the problem first, then share your hunch.
 - **Taking the first design.** One attempt locks in the first shape the model thought of. Ask for prototypes or `/skill:architect` and pick from evidence.
-- **Polishing an abstract plan.** Adversarial review of a plan with no code behind it invents risks that will never happen. Settle the open questions with prototypes, then review what got built.
-- **Parallel agents in one worktree.** They overwrite each other and the diff becomes archaeology. Say "own worktree per attempt".
+- **Polishing an abstract plan.** Executable adversarial review has little to break in a plan with no code behind it. Settle the open questions with prototypes, then review what got built.
+- **Parallel agents in one worktree.** They overwrite each other, and nobody can tell which agent changed what. Say "own worktree per attempt".
 - **Looping before you trust the loop.** A loop that can't verify its own work only makes unchecked work faster. Get the verification skill working first.
 - **Trusting an unvetted number.** A warm cache or a skipped code path can fake a speedup. Run `/skill:benchmark-checklist` before the number goes anywhere.
 - **Correcting the same mistake by hand.** A correction in chat helps one run. `/skill:correct` fixes the repo so no later run repeats it.
 - **Using `/skill:arena` for coverage.** `/skill:arena` repeats one design or code brief, then picks a base and grafts the best parts. `/skill:swarm` partitions slices or declared race arms and aggregates one report.
-- **Accepting every review comment.** Bots and humans both file real catches and noise in one list. `/skill:interrogate` sorts findings into act-on and dismissed buckets with reasons, and you can override either way.
-- **Treating `inherit-parent` as a model.** `inherit-parent` means "omit the model field so the subagent inherits the session's model." [Setup](./01-setup.md) covers the roles.
+- **Accepting every review comment.** Bots and humans both file real catches and noise in one list. `/skill:interrogate` keeps only the findings a rerun proves and lists what it dropped and why, and you can override either way.
+- **Treating `inherit-parent` as a model.** `inherit-parent` is a text alias that launches with `model: "inherit"`, not an omitted model field. Omission can select an agent default. [Setup](./01-setup.md) covers the roles.
 - **Reporting success off a green build.** A build proves it compiles. Ask for the real command, flow, stored value, or profile, and expect the evidence in the reply.
 - **Writing a `SKILL.md` freehand.** Route it through the [Authoring or modifying a skill playbook](../../skills/poteto-mode/playbooks/authoring-a-skill.md) so validation and review happen.
 

@@ -1,6 +1,6 @@
 # Make it yours
 
-poteto-mode is one person's style. The machinery underneath, playbooks, routing, model roles, works just as well wearing yours. This page covers generating a personal mode, capturing lessons from a session, fixing the repo so agents stop repeating mistakes, binding the tools each project uses, authoring a focused skill, and testing a skill change before you trust it.
+poteto-mode is one person's style. The playbooks, routing, and model roles underneath it work just as well with yours. This page covers generating a personal mode, capturing lessons from a session, fixing the repo so agents stop repeating mistakes, binding the tools each project uses, authoring a focused skill, and testing a skill change before you trust it.
 
 Start smaller than you think. You don't need many skills on day one, or even this whole package. Prompt plainly, watch where agents fail, and add a skill or a check when the same failure shows up twice.
 
@@ -18,7 +18,27 @@ Run it again whenever your habits drift:
 /skill:automate-me update my mode skill with everything since its last edit
 ```
 
-Update mode mines only the history since the skill last changed. It keeps rules you haven't contradicted, revises the ones with new evidence, and adds sections only for genuinely new patterns.
+Update mode mines only the history since the skill last changed. It keeps rules you haven't contradicted, revises the ones with new evidence, and adds sections only for new patterns.
+
+## Opt into automatic routing manually
+
+Setup does not install workflow routing. If you want Pi to reach for poteto-mode without a command, manually add this optional block to `AGENTS.md` in your Pi agent directory (`$PI_CODING_AGENT_DIR`, else `~/.pi/agent`). Replace `<absolute path>` with the installed package's `skills` directory from `pi list`. Keep any existing instructions. Remove this block to turn routing off.
+
+```markdown
+<!-- pstack-routing:start -->
+## pstack routing
+
+Read the poteto-mode skill at `<absolute path>/poteto-mode/SKILL.md` and follow it when a task meets any of these:
+
+- it touches more than one file, or changes a signature other files call
+- it involves a design or architecture choice
+- it is a bug whose cause is not yet known, or a performance issue
+
+For smaller tasks, such as a contained change to one file with an obvious test, a question, or a one-line edit, work directly and verify on the real artifact. When the intent is already specific, read that pstack skill from the same directory instead: `tdd`, `architect`, `how`, `why`, `arena`, `interrogate`.
+<!-- pstack-routing:end -->
+```
+
+This is a personal routing choice, not a package policy or a persistent mode.
 
 ## Capture a session's lessons with `/skill:reflect`
 
@@ -28,7 +48,7 @@ Right after a task that taught you something, run:
 /skill:reflect that took way too long. capture what we learned so the next run doesn't repeat it.
 ```
 
-[`/skill:reflect`](../../skills/reflect/SKILL.md) sends the transcript to three parallel reviewers, then a synthesizer sorts the proposals into `Accepted`, `Rejected`, and `Backlog` and waits for your approval before any skill changes. A change to a pstack skill lands as a lesson file outside the package, in the project's `.pi/pstack/lessons/` or your own `pstack/lessons/` in the Pi agent directory, so `pi update` keeps it. Approve a proposal only if it would change a future decision. One weird session is an anecdote, not a rule.
+[`/skill:reflect`](../../skills/reflect/SKILL.md) sends the transcript to three parallel reviewers, then a synthesizer sorts the proposals into `Accepted`, `Rejected`, and `Backlog` and waits for your approval before any skill changes. A change to a pstack skill lands as a lesson file outside the package, in the project's `.pi/pstack/lessons/` or your own `pstack/lessons/` in the Pi agent directory, so `pi update` keeps it. For another installed package, Reflect copies the skill into a project or user skill directory and edits that copy after approval, not the installed cache. It never pushes or opens a PR. Approve a proposal only if it would change a future decision. One weird session is an anecdote, not a rule.
 
 ## Fix the environment with `/skill:correct`
 
@@ -86,7 +106,7 @@ CLI `jira`, project PLAT. The ticket key goes in the PR title.
 none
 ```
 
-A recipe tells the agent how one tool does the work. For the forge and CI, its first line names the tool, and it has one `## <operation>` section for each operation the playbooks name, such as `create`, `view`, and `merge`. When a recipe has no section for an operation, the agent does it with the same tool, reading its `--help` or MCP tool descriptions. It never switches to another tool. For an evidence key such as `tracker`, a recipe is one investigator playbook for `/skill:why`, shaped like its [source playbooks](../../skills/why/references/sources/). The agent looks for `recipes/<name>.md` in the folders above, nearest first, then in the package. The package ships `github-gh` and `origin` for the forge, and the `/skill:why` source playbooks resolve by name, as in `recipe: linear`. The example above needs your own `recipes/bitbucket.md` and `recipes/jira.md`, and `/skill:setup-pstack` drafts a missing recipe from the tool's `--help` or its MCP tool descriptions.
+A recipe tells the agent how one tool does the work. For the forge and CI, its first line names the tool, and it has one `## <operation>` section for each operation the playbooks name, such as `create`, `view`, and `merge`. When a recipe has no section for an operation, the agent does it with the same tool, reading its `--help` or MCP tool descriptions. It never switches to another tool. For an evidence key such as `tracker`, a recipe is a shared evidence-source playbook for Why, Recall, and other consumers, shaped like the [source playbooks](../../skills/poteto-mode/integrations/sources/). The agent looks for `recipes/<name>.md` in the folders above, nearest first, then in the package. The package ships `github-gh` and `origin` for the forge, and the shared source playbooks resolve by name, as in `recipe: linear`. The example above needs your own `recipes/bitbucket.md` and `recipes/jira.md`, and `/skill:setup-pstack` drafts a missing recipe from the tool's `--help` or its MCP tool descriptions.
 
 Here is the start of a GitLab forge recipe, `recipes/gitlab.md`, that drives the `glab` CLI. It's an example, so check each command against `glab --help` before you rely on it:
 
@@ -132,7 +152,7 @@ When you already know the workflow you want to capture:
 
 Writing a skill matches the [Authoring or modifying a skill playbook](../../skills/poteto-mode/playbooks/authoring-a-skill.md), which follows Pi's skills documentation, validates the frontmatter and links, and ships the result through the Opening a PR playbook. Agent-facing prose has a higher bar than human prose, because an unhelpful sentence becomes an instruction some future agent follows. Let the playbook hold that bar rather than writing a `SKILL.md` freehand.
 
-One special case has its own generator. A skill that must drive your app and prove behavior is a verification skill, so use [`/skill:create-verification-skill`](../../skills/create-verification-skill/SKILL.md) and [`/skill:maintain-verification-skill`](../../skills/maintain-verification-skill/SKILL.md) instead. [Verify and ship](./06-verify-and-ship.md#create-a-project-verification-skill) covers both.
+Two special cases have their own generators. A skill that must drive your app and prove behavior is a verification skill, so use [`/skill:create-verification-skill`](../../skills/create-verification-skill/SKILL.md) and [`/skill:maintain-verification-skill`](../../skills/maintain-verification-skill/SKILL.md) instead. A skill that checks a property of your code with a model checker, a proof, or another verifier is a formal verification skill, so use [`/skill:create-formal-verification-skill`](../../skills/create-formal-verification-skill/SKILL.md) and [`/skill:maintain-formal-verification-skill`](../../skills/maintain-formal-verification-skill/SKILL.md). [Verify and ship](./06-verify-and-ship.md#prove-a-property-with-a-formal-verification-skill) covers both kinds.
 
 ## Write docs to a standard with `/skill:technical-writing`
 
@@ -142,7 +162,7 @@ Skills aren't the only prose you ship. For docs, RFCs, readmes, PR descriptions,
 /skill:technical-writing review the readme changes
 ```
 
-[`/skill:technical-writing`](../../skills/technical-writing/SKILL.md) applies a layered standard with one goal, prose a tired engineer understands on the first read. It picks the document's mode first (tutorial, how-to, reference, or explanation), then works sentence by sentence: who does what, one thought per sentence, nothing readable two ways. Use it to review what you or an agent just wrote, or name it up front when you ask for a doc.
+[`/skill:technical-writing`](../../skills/technical-writing/SKILL.md) applies a layered standard. Its goal is prose that a tired engineer understands on the first read. It picks the document's mode first (tutorial, how-to, reference, or explanation), then works sentence by sentence: who does what, one thought per sentence, nothing readable two ways. Use it to review what you or an agent just wrote, or name it up front when you ask for a doc.
 
 ## Test a skill change blind
 

@@ -5,16 +5,16 @@ revisit.
 
 ## Limitations versus Cursor
 
-- **No cloud workers.** Upstream `swarm` and `orchestrate` give each worker its own cloud VM:
-  its own checkout, ports, and CPU. Pi runs workers locally. Rule for now:
-  read-only lanes share the project directory; lanes that check out a SHA, build, or write get
-  their own git worktree (`worktree: true`); lanes that run the app also get their own port from
-  the brief; perf lanes run sequentially, never alongside other lanes.
-  Later: spawn heavy lanes on devboxes or remote machines (for example through herdr), so
-  swarm and orchestrate get real isolation and their own CPU again, as Cursor's cloud workers do.
+- **No automatic per-worker VM provisioning.** Upstream `swarm` and `orchestrate` give each worker
+  its own cloud VM: its own checkout, ports, and CPU. This port launches local workers on a shared
+  host by default. This is a port limitation, not a claim that Pi has no remote execution support.
+  The shared [Pi isolation procedure](skills/poteto-mode/references/pi-isolation.md) covers runnable
+  checkouts, ports, shared resources, and sequential performance measurements. Remote placement
+  would need explicit provisioning and the same resource-isolation guarantees.
 - **Worktrees need a clean tree.** pi-subagents refuses `worktree: true` while the working tree
-  has uncommitted changes. Skills tell the agent to commit or stash first, or to fall back to a
-  separate output directory.
+  has uncommitted changes. Pi isolation includes a scoped transfer to a separate runnable
+  checkout without stashing or committing the user's work. An output directory alone is not
+  a checkout. Reproduction setup is conditional on the work being run, not a universal gate.
 - **No skill-authoring loop.** Cursor's built-in `create-skill` runs draft, test, and iterate
   loops and a description-optimization loop. Pi has only its skills documentation, so `reflect`
   and the authoring playbook describe those loops in prose.
@@ -24,7 +24,7 @@ revisit.
 ## External integrations
 
 Integrations are configurable per project. Each capability (forge, CI, review bots, tracker,
-chat, and the other `why` sources) resolves through `integrations.sh` to the tool the user bound,
+chat, and the other evidence sources) resolves through `integrations.sh` to the tool the user bound,
 and playbooks run each operation from that tool's recipe. A GitHub remote with no binding uses the
 package's `github-gh` recipe. The agent reference is
 [`references/integrations.md`](skills/poteto-mode/references/integrations.md), and the user guide
@@ -38,15 +38,15 @@ What remains:
 - Bindings stay out of git through `.git/info/exclude`, and git treats excluded files as
   disposable. Checking out a branch that commits `.pi/pstack/` replaces the local files, and
   switching back deletes them. The scripts skip such a layer, but the local copy is already gone.
-- `orch` computes the frontier only for `gh` and Origin (`Forge` in
-  `skills/poteto-mode/scripts/orch/store.ts`). With any other forge, the Orchestrate coordinator
-  keeps `frontier.json` by hand from the recipe's `view`.
+- Orchestrate uses PR and CI event subscriptions only when the bound tools provide them. Native
+  subagent completion wakes are not forge events. Without external event delivery, report that
+  limitation rather than promising unattended PR/CI monitoring or adding a polling loop.
 - `worktree-audit.sh` reads PR state only when the forge resolves to `github-gh` or `origin`. Any
   other forge leaves the PR column at `-`.
-- The package ships recipes only for `github-gh` and `origin`, plus the `why` source playbooks
+- The package ships recipes only for `github-gh` and `origin`, plus the shared source playbooks in `skills/poteto-mode/integrations/sources/`
   (Linear, Slack, Notion, Datadog, Sentry, Databricks, code archaeology, incident postmortem).
   Every other tool needs a recipe the user writes or `/skill:setup-pstack` drafts.
-- `/skill:setup-pstack` step 13, which binds the project's tools and drafts recipes, has not been
+- `/skill:setup-pstack` step 12, which binds the project's tools and drafts recipes, has not been
   run end to end.
 - GitHub detection resolves an SSH host alias with `ssh -G`. It never connects, but it evaluates
   the user's SSH config, and a `Match exec` block runs its command (checked with a temporary
@@ -57,11 +57,9 @@ What remains:
 
 - **Hidden skills never reach subagents.** pi-subagents drops every skill with
   `disable-model-invocation: true` from a child's prompt, even when the agent names it in
-  `skills`. All pstack skills are hidden, so `poteto-agent` gets the poteto-mode path from its
-  parent; as fallbacks, `/skill:setup-pstack` sets `subagents.agentOverrides["poteto-agent"].defaultReads`
-  to the skill's absolute path (pi-subagents skips the entry if the file is gone), and the agent
-  can find the package with `pi list`. A pi-subagents option to pass hidden skills an agent
-  definition names explicitly would remove these workarounds.
+  `skills`. Most workflow skills are hidden. The four discoverable skills are `setup-pstack`,
+  `control-ui`, `control-cli`, and `deslop`. `poteto-agent` gets the poteto-mode path from its
+  parent, or finds the package with `pi list`. Setup does not maintain `defaultReads` overrides.
 - **Nested subagent calls need permission.** With pi-permission-system set to ask, every
   `subagent` call a child makes goes to the main session's authorizer chain. Unattended runs need
   an auto-review model or allow rules for `subagent`, `bash`, `bg_run`, and the goal tools.
@@ -69,7 +67,39 @@ What remains:
   candidate's launch or push, or be the only thing that stops a wrong action, so read its
   decisions before scoring an arm.
 - **`auto` role value dropped.** Cursor's `auto` model alias has no Pi equivalent. Roles take
-  `provider/id[:level]` or `inherit-parent`.
+  `provider/id[:level]` or `inherit-parent`. The latter launches with `model: "inherit"`;
+  omitting `model` can select an agent default instead.
+- **Model capabilities differ.** Budgets adjust each role's base effort, then select a supported
+  level at or below the target and configured ceiling without changing model identity. Priority
+  service is conditional on runtime and model support and the user's cost and quota policy.
+- **Context inheritance is configurable.** Package agents explicitly inherit project and global
+  context. User overrides can disable it. The global Lessons offer does not guarantee propagation
+  to unrelated agents.
+
+## Partial upstream ports
+
+The original import remains v0.15.25. Existing-workflow and minor changes are partially ported
+from `bf0c7cd80abdbf7fe47b634978a7d1b4071f71a7`, not a full v0.15.42 import. The
+[coverage manifest](docs/guide/upstream-01542-coverage.md) classifies every changed-existing file.
+
+- Formal verification generation and maintenance, statechart, and ketchup-video are imported.
+  Statechart retains its pinned TLC, Java and test dependencies. Rendering uses the user's chosen
+  Mermaid renderer, with the upstream Pele recipe available when selected. Text and tooling checks
+  do not establish live agent behavior for generated proofs or rendered catch-up videos.
+- Orchestrate now follows the upstream owner-per-PR protocol without `orch`. Its lightweight
+  tracker is `orchestrate/<project-slug>/notes.md` under the existing shared Store. Existing old
+  program files are not deleted or converted automatically. When picking up an old program,
+  reconcile its PRs and current heads into the tracker before resuming work.
+- Orchestrate requires a different-model-family verifier for each PR's merge pass. A single vendor
+  does not imply multiple families are available. If no eligible verifier is available, report the
+  gap without treating author verification as the required pass.
+- Fixed model defaults remain excluded. Setup keeps user-selected models and `inherit-parent`.
+- External Lessons handle amendments to pstack. Reflect edits an approved project or user copy
+  of other installed skills, never their installed cache, and never pushes or opens a PR.
+- Same-vendor cross-judging is skipped, not replaced with a judge from another connection to the
+  same vendor. Arena still runs candidates and parent selection and discloses the omission.
+- Documentation and static checks are not live evaluations of How, Why, Recall, Interrogate,
+  Arena, Sharpen, or Autopilot. Live auth and goal caveats below still apply.
 
 ## Removed from the port
 
@@ -87,11 +117,12 @@ What remains:
 Cursor's `/loop` serves three uses in pstack. The port maps them to Pi packages, which makes the
 port opinionated about the Pi stack.
 
-- Loop until a predicate (Autonomous run, Visual parity, overnight runs): pi-goal-x.
-- Periodic tick (`/loop 1h` audit in Multi-phase plan and Autopilot-full): a `bg_run` sleep
-  timer whose exit wakes the session, rearmed after every tick. Without pi-background-tasks, a
-  one-shot `schedule.create`, whose run notification wakes the session.
-- Event wake (CI, merge, ref advancing): async subagent watcher or `bg_run`.
+- Loop until a predicate uses pi-goal-x. Visual parity retains a predicate per component.
+- Periodic ticks and event wakes follow [Pi waits](skills/poteto-mode/references/pi-waits.md).
+  That procedure owns native completion, timer fallback, deduplication, and cleanup.
+
+The following live checks predate the fidelity cleanup; they are evidence for those scenarios,
+not a fresh evaluation of every caller.
 
 Checked in phase 4 with `pi --mode rpc` (a live session; `pi -p` exits after one turn, so nothing
 can wake it): a pi-goal-x goal plus three 15-second `bg_run` timers wrote three ticks and completed
@@ -153,5 +184,5 @@ lines) to port instead.
 - **Package dependencies.** Pi packages cannot declare other Pi packages as dependencies;
   `dependencies` in `package.json` only covers npm modules imported by extensions. Required:
   pi-subagents, pi-goal-x. Optional: pi-background-tasks, a todo tool, a question tool, an MCP
-  adapter for `why` sources. The README lists the `pi install` lines, and `/skill:setup-pstack`
+  adapter for bound evidence sources. The README lists the `pi install` lines, and `/skill:setup-pstack`
   checks which tools are present.

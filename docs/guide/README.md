@@ -9,13 +9,13 @@ Here's what you'll learn:
 3. [Understand the code](./03-understand.md). A read-only investigation, then `/skill:how`, `/skill:why`, `/skill:teach`, and `/skill:recall` before you edit anything.
 4. [Design the change](./04-design.md). `/skill:architect`, `/skill:arena`, `/skill:swarm`, `/skill:interrogate`, prototypes, and plans before code locks in a shape.
 5. [Build and clean the change](./05-build-and-clean.md). The build playbooks, `/skill:tdd`, `/skill:unslop`, and `/skill:no-comments`.
-6. [Verify and ship](./06-verify-and-ship.md). Prove behavior on the real app, vet numbers with `/skill:benchmark-checklist`, then open a focused PR and drive it to merged.
+6. [Verify and ship](./06-verify-and-ship.md). Prove behavior on the real app, formally verify what tests rarely reach, vet numbers with `/skill:benchmark-checklist`, then open a focused PR and drive it to merged.
 7. [Run work while you sleep](./07-overnight.md). Trust before loops, an overnight contract, a decision log you can audit, and Projects and automations that scale past one agent.
 8. [Steer with principle names](./08-principles.md). The 24 names that redirect an agent mid-task.
 9. [Make it yours](./09-make-it-yours.md). Your own mode, `/skill:correct` for repeated mistakes, your project's tools, and how to test a skill change.
 10. [Recipes and pitfalls](./10-recipes-and-pitfalls.md). Prompts to copy and mistakes to skip.
 
-Read the pages in order the first time. After that, each page stands alone.
+Read the pages in order the first time. After that, each page stands alone. The [bundled inventory](inventory.md) lists every skill, playbook, and agent. The [partial upstream coverage](upstream-01542-coverage.md) records what was ported and what remains deferred. [Intentional upstream exceptions](upstream-exceptions.md) explains each necessary adaptation and its verification limits.
 
 When you're stuck, or can't tell which skill fits, type [`/skill:poteto-help`](../../skills/poteto-help/SKILL.md) with your question:
 
