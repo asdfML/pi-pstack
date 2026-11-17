@@ -40,9 +40,9 @@ write(
 );
 chmodSync(join(bin, "ssh"), 0o755);
 
-function run(cwd: string, args: string[] = []) {
+function run(cwd: string, args: string[] = [], agentDir = join(home, "agent")) {
 	mkdirSync(cwd, { recursive: true });
-	const env = { ...process.env, HOME: home, PI_CODING_AGENT_DIR: join(home, "agent"), PATH: `${bin}:${process.env.PATH}` };
+	const env = { ...process.env, HOME: home, PI_CODING_AGENT_DIR: agentDir, PATH: `${bin}:${process.env.PATH}` };
 	return spawnSync("sh", [script, ...args], { cwd, env, encoding: "utf8" });
 }
 
@@ -156,18 +156,32 @@ test("a recipe is found in the project before the user layer before the package"
 	expect(block(out, "ci")).toContain(`recipe: user-only at ${user}/recipes/user-only.md`);
 });
 
-test("why's source playbooks resolve by name after the package, and a layer's recipe of that name wins", () => {
-	const why = realpathSync(join(import.meta.dir, "../../why/references/sources"));
-	const r = repo(join(home, "why-sources"));
+test("shared source playbooks resolve by name after the package, and a layer's recipe of that name wins", () => {
+	const sources = realpathSync(join(import.meta.dir, "../integrations/sources"));
+	const r = repo(join(home, "shared-sources"));
 	write(join(layer(r), "bindings.md"), "## chat\nrecipe: slack\nWorkspace acme.\n\n## tracker\nrecipe: linear\n\n## docs\nrecipe: notion\n");
 	write(join(layer(r), "recipes/linear.md"), "## search\n");
 	write(join(user, "recipes/notion.md"), "## search\n");
 	const out = run(r).stdout;
 	expect(block(out, "chat")).toBe(
-		`== chat: bound\nfrom: ${layer(r)}/bindings.md\nrecipe: slack at ${why}/slack.md\nWorkspace acme.`,
+		`== chat: bound\nfrom: ${layer(r)}/bindings.md\nrecipe: slack at ${sources}/slack.md\nWorkspace acme.`,
 	);
 	expect(block(out, "tracker")).toContain(`recipe: linear at ${layer(r)}/recipes/linear.md`);
 	expect(block(out, "docs")).toContain(`recipe: notion at ${user}/recipes/notion.md`);
+});
+
+test("every shared source playbook resolves from integrations without Why's retired references", () => {
+	const sources = realpathSync(join(import.meta.dir, "../integrations/sources"));
+	const r = repo(join(home, "all-shared-sources"));
+	for (const name of ["code-archaeology", "linear", "notion", "slack", "datadog", "sentry", "databricks", "incident-postmortem"]) {
+		write(join(layer(r), "bindings.md"), `## docs\nrecipe: ${name}\nSource notes.\n`);
+		const out = run(r, ["docs"], join(home, "sources-agent"));
+		expect(out.status).toBe(0);
+		expect(out.stderr).toBe("");
+		expect(block(out.stdout, "docs")).toBe(
+			`== docs: bound\nfrom: ${layer(r)}/bindings.md\nrecipe: ${name} at ${sources}/${name}.md\nSource notes.`,
+		);
+	}
 });
 
 test("a missing recipe, a bad first line, and a path-like name are reported, not resolved", () => {
