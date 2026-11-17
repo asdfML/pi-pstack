@@ -9,7 +9,7 @@ Paths are relative to the imported `pstack/` subtree.
 integration/model adaptations. `Keep` means the local equivalent already meets the requirement.
 `Defer` and `Exclude` name changes deliberately not imported. A mixed row names the boundary.
 Static validation does not establish live workflow behavior. The
-[intentional exceptions](upstream-exceptions.md) give the rationale for each necessary adaptation.
+[intentional exceptions](../../PORTING.md#intentional-upstream-exceptions) give the rationale for each necessary adaptation.
 
 ## Changed-existing inventory
 

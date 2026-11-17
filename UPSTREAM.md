@@ -14,7 +14,7 @@ cursor/plugins@bf0c7cd80abdbf7fe47b634978a7d1b4071f71a7, the pinned v0.15.42 tre
 full v0.15.42 import or a package version bump. The original v0.15.25 baseline above remains.
 The [per-file coverage manifest](docs/guide/upstream-01542-coverage.md) records the changed-existing
 inventory, adaptations, exclusions, and deferred work. The
-[intentional exceptions](docs/guide/upstream-exceptions.md) explain why the remaining departures are
+[intentional exceptions](PORTING.md#intentional-upstream-exceptions) explain why the remaining departures are
 necessary and which upstream contracts they preserve.
 
 The partial port covers the short How and Why workflows, independent Recall investigators,
